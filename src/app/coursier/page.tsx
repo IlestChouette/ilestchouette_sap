@@ -1,20 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { auth, db, messaging } from "@/app/_lib/firebase";
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  serverTimestamp,
-  getDoc,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import { getToken, onMessage } from "firebase/messaging";
+import { supabase } from "../_lib/supabaseClient";
 
 type AssignmentStatus =
   | "assigned"
@@ -26,9 +13,11 @@ type AssignmentStatus =
 type Assignment = {
   id: string;
   order_id: string;
-  courier_id: string;
-  assigned_at?: any;
-  status?: AssignmentStatus;
+  courier_email: string;
+  assigned_at?: string | null;
+  status?: AssignmentStatus | null;
+  payment_method?: string | null;
+  validated_with_code?: boolean | null;
 };
 
 type Order = {
@@ -40,24 +29,26 @@ type Order = {
   notes?: string | null;
   price_total: number;
   express?: boolean;
-  created_at?: any;
-  validation_code?: string;
+  created_at?: string | null;
+  validation_code?: string | null;
 };
 
 type Availability = {
   id: string;
-  start: any;
-  end: any;
+  courier_email: string;
+  start: string;
+  end: string;
+  created_at?: string;
 };
 
 export default function CourierPage() {
-  // connexion
-  const [me, setMe] = useState<any>(null);
+  // ====== "auth" très simple : on tape l'email et on se connecte ======
+  const [meEmail, setMeEmail] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
+  const [pass, setPass] = useState(""); // juste pour garder ton champ
   const [err, setErr] = useState("");
 
-  // data temps réel
+  // ====== data ======
   const [assignments, setAssignments] = useState<
     (Assignment & { order?: Order })[]
   >([]);
@@ -66,137 +57,147 @@ export default function CourierPage() {
   const [availStart, setAvailStart] = useState("");
   const [availEnd, setAvailEnd] = useState("");
 
-  // états pour la clôture de mission
+  // états de clôture
   const [finishingId, setFinishingId] = useState<string | null>(null);
   const [finishPayment, setFinishPayment] = useState<"cash" | "card" | "">("");
   const [finishCode, setFinishCode] = useState("");
   const [finishErr, setFinishErr] = useState("");
 
-  // 👉 le coursier touche 65% des commandes acceptées ou terminées
+  // 65% pour le coursier
   const totalBrutGagne = assignments
     .filter(
       (a) => a.order && (a.status === "acceptee" || a.status === "terminee")
     )
     .reduce((sum, a) => sum + a.order!.price_total * 0.65, 0);
 
-  /* =============== LOGIN =============== */
+  /* ================= LOGIN ================= */
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
-    try {
-      const { signInWithEmailAndPassword } = await import("firebase/auth");
-      const userCred = await signInWithEmailAndPassword(auth, email, pass);
-      setMe(userCred.user);
-    } catch (e: any) {
-      setErr(e.message || "Erreur de connexion");
+    if (!email) {
+      setErr("Saisis un email");
+      return;
     }
+    // ici on ne vérifie pas de mot de passe, on stocke juste l'email
+    setMeEmail(email.toLowerCase());
   }
 
+  /* ================= CHARGER DONNÉES ================= */
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged((u) => {
-      if (u) setMe(u);
-    });
-    return () => unsub();
-  }, []);
+    if (!meEmail) return;
 
-  /* =============== TEMPS RÉEL =============== */
-  useEffect(() => {
-    if (!me?.email) return;
+    // fonction pour charger missions + commandes
+    const loadAssignments = async () => {
+      const { data: assigns, error } = await supabase
+        .from("assignments")
+        .select("*")
+        .eq("courier_email", meEmail)
+        .order("assigned_at", { ascending: false });
 
-    // missions
-    const qAssign = query(
-      collection(db, "assignments"),
-      where("courier_id", "==", me.email),
-      orderBy("assigned_at", "desc")
-    );
-    const unsubAssign = onSnapshot(qAssign, async (snap) => {
+      if (error) {
+        console.error("assignments error", error);
+        return;
+      }
+
       const rows: (Assignment & { order?: Order })[] = [];
-
-      for (const d of snap.docs) {
-        const a = { id: d.id, ...(d.data() as any) } as Assignment;
+      for (const a of assigns || []) {
         let orderData: Order | undefined;
         if (a.order_id) {
-          const oRef = doc(db, "orders", a.order_id);
-          const oSnap = await getDoc(oRef);
-          if (oSnap.exists()) {
-            orderData = { id: oSnap.id, ...(oSnap.data() as any) } as Order;
+          const { data: order, error: orderErr } = await supabase
+            .from("orders")
+            .select("*")
+            .eq("id", a.order_id)
+            .maybeSingle();
+          if (!orderErr && order) {
+            orderData = order as Order;
           }
         }
-        rows.push({ ...a, order: orderData });
+        rows.push({ ...(a as any), order: orderData });
       }
-
       setAssignments(rows);
-    });
+    };
 
-    // dispos
-    const qAvail = query(
-      collection(db, "availabilities"),
-      where("courier_id", "==", me.email),
-      orderBy("start", "desc")
-    );
-    const unsubAvail = onSnapshot(qAvail, (snap) => {
-      const rows = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      })) as Availability[];
-      setAvailabilities(rows);
-    });
+    const loadAvailabilities = async () => {
+      const { data, error } = await supabase
+        .from("availabilities")
+        .select("*")
+        .eq("courier_email", meEmail)
+        .order("start", { ascending: false });
+      if (!error && data) {
+        setAvailabilities(data as any);
+      }
+    };
+
+    loadAssignments();
+    loadAvailabilities();
+
+    // temps réel sur assignments pour ce coursier
+    const channel = supabase
+      .channel("assignments-stream")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "assignments",
+          filter: `courier_email=eq.${meEmail}`,
+        },
+        () => {
+          // on recharge
+          loadAssignments();
+        }
+      )
+      .subscribe();
+
+    // temps réel sur dispos
+    const channelAvail = supabase
+      .channel("availabilities-stream")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "availabilities",
+          filter: `courier_email=eq.${meEmail}`,
+        },
+        () => {
+          loadAvailabilities();
+        }
+      )
+      .subscribe();
 
     return () => {
-      unsubAssign();
-      unsubAvail();
+      supabase.removeChannel(channel);
+      supabase.removeChannel(channelAvail);
     };
-  }, [me]);
+  }, [meEmail]);
 
-  /* =============== AJOUT DISPO =============== */
+  /* ================= AJOUT DISPO ================= */
   async function addAvailability() {
-    if (!me?.email) return;
+    if (!meEmail) return;
     if (!availStart || !availEnd) return;
     setIsAddingAvail(true);
-    try {
-      await addDoc(collection(db, "availabilities"), {
-        courier_id: me.email,
-        start: new Date(availStart),
-        end: new Date(availEnd),
-        created_at: serverTimestamp(),
-      });
+
+    const { error } = await supabase.from("availabilities").insert({
+      courier_email: meEmail,
+      start: new Date(availStart).toISOString(),
+      end: new Date(availEnd).toISOString(),
+    });
+
+    setIsAddingAvail(false);
+    if (!error) {
       setAvailStart("");
       setAvailEnd("");
-    } finally {
-      setIsAddingAvail(false);
+      const { data } = await supabase
+        .from("availabilities")
+        .select("*")
+        .eq("courier_email", meEmail)
+        .order("start", { ascending: false });
+      setAvailabilities((data || []) as any);
     }
   }
 
-  /* =============== NOTIFS FCM (optionnel) =============== */
-  useEffect(() => {
-    if (!messaging || !me?.email) return;
-
-    (async () => {
-      try {
-        const token = await getToken(messaging, {
-          vapidKey: process.env.NEXT_PUBLIC_FCM_VAPID_KEY,
-        });
-        if (token) {
-          await addDoc(collection(db, "device_tokens"), {
-            courier_id: me.email,
-            token,
-            created_at: serverTimestamp(),
-          });
-        }
-      } catch (e) {
-        console.warn("FCM token error", e);
-      }
-    })();
-
-    const unsub = onMessage(messaging, (payload) => {
-      console.log("notif reçue:", payload);
-      alert(payload.notification?.title || "Nouvelle mission");
-    });
-
-    return () => unsub();
-  }, [me]);
-
-  /* =============== CLOTURER LIVRAISON =============== */
+  /* ================= CLOTURER LIVRAISON ================= */
   async function finishDelivery(a: Assignment & { order?: Order }) {
     setFinishErr("");
 
@@ -210,35 +211,38 @@ export default function CourierPage() {
       return;
     }
 
-    try {
-      await updateDoc(doc(db, "assignments", a.id), {
+    const { error } = await supabase
+      .from("assignments")
+      .update({
         status: "terminee",
-        completed_at: serverTimestamp(),
+        completed_at: new Date().toISOString(),
         payment_method: finishPayment,
         validated_with_code: !!finishCode,
-      });
+      })
+      .eq("id", a.id);
 
-      await addDoc(collection(db, "events"), {
-        type: "delivery_completed",
-        courier_id: me?.email,
-        assignment_id: a.id,
-        order_id: a.order_id,
-        payment_method: finishPayment,
-        needs_invoice: true,
-        at: serverTimestamp(),
-      });
-
-      setFinishingId(null);
-      setFinishPayment("");
-      setFinishCode("");
-      setFinishErr("");
-    } catch (e: any) {
-      setFinishErr(e.message || "Impossible d’enregistrer la livraison.");
+    if (error) {
+      setFinishErr(error.message);
+      return;
     }
+
+    await supabase.from("events").insert({
+      type: "delivery_completed",
+      courier_email: meEmail,
+      assignment_id: a.id,
+      order_id: a.order_id,
+      payment_method: finishPayment,
+      needs_invoice: true,
+    });
+
+    setFinishingId(null);
+    setFinishPayment("");
+    setFinishCode("");
+    setFinishErr("");
   }
 
-  /* =============== UI CONNEXION =============== */
-  if (!me) {
+  /* ================= UI CONNEXION ================= */
+  if (!meEmail) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
         <form
@@ -255,7 +259,7 @@ export default function CourierPage() {
           />
           <input
             className="border rounded px-3 py-2 w-full"
-            placeholder="mot de passe"
+            placeholder="mot de passe (pas utilisé)"
             type="password"
             value={pass}
             onChange={(e) => setPass(e.target.value)}
@@ -273,20 +277,19 @@ export default function CourierPage() {
     );
   }
 
-  /* =============== UI PRINCIPALE =============== */
+  /* ================= UI PRINCIPALE ================= */
   return (
     <main className="min-h-screen bg-gray-100 pb-20">
       {/* header */}
       <header className="bg-white shadow px-4 py-3 flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-500">Connecté</p>
-          <p className="text-sm font-semibold break-all">{me.email}</p>
+          <p className="text-sm font-semibold break-all">{meEmail}</p>
         </div>
         <button
           className="text-xs text-red-500"
-          onClick={async () => {
-            await auth.signOut();
-            setMe(null);
+          onClick={() => {
+            setMeEmail(null);
           }}
         >
           Déconnexion
@@ -299,7 +302,9 @@ export default function CourierPage() {
           <p className="text-xs text-gray-500 tracking-wide">
             TOTAL BRUT GAGNÉ
           </p>
-          <p className="text-2xl font-bold mt-1">{totalBrutGagne.toFixed(2)} €</p>
+          <p className="text-2xl font-bold mt-1">
+            {totalBrutGagne.toFixed(2)} €
+          </p>
           <p className="text-xs text-gray-400 mt-2 leading-relaxed">
             Montant que tu as généré sur tes livraisons (65 % du prix client).
             La plateforme Il est chouette retient 35 % de frais de service
@@ -312,7 +317,9 @@ export default function CourierPage() {
       <section className="px-4 mt-4">
         <h2 className="text-sm font-semibold mb-2">Missions assignées</h2>
         {assignments.length === 0 ? (
-          <p className="text-sm text-gray-500">Aucune mission pour le moment.</p>
+          <p className="text-sm text-gray-500">
+            Aucune mission pour le moment.
+          </p>
         ) : (
           <div className="space-y-3">
             {assignments.map((a) => {
@@ -374,15 +381,17 @@ export default function CourierPage() {
                         <div className="flex gap-2 mt-3">
                           <button
                             onClick={async () => {
-                              await updateDoc(doc(db, "assignments", a.id), {
-                                status: "acceptee",
-                                accepted_at: serverTimestamp(),
-                              });
-                              await addDoc(collection(db, "events"), {
+                              await supabase
+                                .from("assignments")
+                                .update({
+                                  status: "acceptee",
+                                  accepted_at: new Date().toISOString(),
+                                })
+                                .eq("id", a.id);
+                              await supabase.from("events").insert({
                                 type: "courier_accept",
-                                courier_id: me.email,
+                                courier_email: meEmail,
                                 assignment_id: a.id,
-                                at: serverTimestamp(),
                               });
                             }}
                             className="bg-black text-white text-sm rounded px-3 py-1"
@@ -391,15 +400,17 @@ export default function CourierPage() {
                           </button>
                           <button
                             onClick={async () => {
-                              await updateDoc(doc(db, "assignments", a.id), {
-                                status: "refusee",
-                                refused_at: serverTimestamp(),
-                              });
-                              await addDoc(collection(db, "events"), {
+                              await supabase
+                                .from("assignments")
+                                .update({
+                                  status: "refusee",
+                                  refused_at: new Date().toISOString(),
+                                })
+                                .eq("id", a.id);
+                              await supabase.from("events").insert({
                                 type: "courier_refuse",
-                                courier_id: me.email,
+                                courier_email: meEmail,
                                 assignment_id: a.id,
-                                at: serverTimestamp(),
                               });
                             }}
                             className="bg-gray-200 text-gray-800 text-sm rounded px-3 py-1"
@@ -414,7 +425,7 @@ export default function CourierPage() {
                         <div className="mt-3 space-y-3">
                           <button
                             className="bg-black text-white text-sm rounded px-3 py-1"
-                            onClick={async () => {
+                            onClick={() => {
                               const pickup = encodeURIComponent(
                                 a.order!.pickup_address || ""
                               );
@@ -424,16 +435,11 @@ export default function CourierPage() {
                               const url = `https://www.google.com/maps/dir/?api=1&origin=${pickup}&destination=${dropoff}&travelmode=driving`;
                               window.open(url, "_blank");
 
-                              try {
-                                await addDoc(collection(db, "events"), {
-                                  type: "courier_open_route",
-                                  courier_id: me.email,
-                                  assignment_id: a.id,
-                                  at: serverTimestamp(),
-                                });
-                              } catch (e) {
-                                console.warn("event log failed", e);
-                              }
+                              supabase.from("events").insert({
+                                type: "courier_open_route",
+                                courier_email: meEmail,
+                                assignment_id: a.id,
+                              });
                             }}
                           >
                             Ouvrir itinéraire
@@ -565,13 +571,8 @@ export default function CourierPage() {
           <ul className="space-y-2">
             {availabilities.map((a) => (
               <li key={a.id} className="text-xs bg-white rounded p-2">
-                {a.start?.toDate
-                  ? a.start.toDate().toLocaleString()
-                  : new Date(a.start).toLocaleString()}{" "}
-                →{" "}
-                {a.end?.toDate
-                  ? a.end.toDate().toLocaleString()
-                  : new Date(a.end).toLocaleString()}
+                {new Date(a.start).toLocaleString()} →{" "}
+                {new Date(a.end).toLocaleString()}
               </li>
             ))}
           </ul>

@@ -1,61 +1,74 @@
 "use client";
 
 import { useState } from "react";
-import { auth, db } from "@/app/_lib/firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { supabase } from "../../_lib/supabaseClient"; // garde ce chemin comme tu l'as mis
 
 export default function CoursierLoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
 
-  // login
+  /* ==== LOGIN ==== */
   const [loginEmail, setLoginEmail] = useState("coursier@ilestchouette.fr");
   const [loginPassword, setLoginPassword] = useState("motdepasse");
   const [loginError, setLoginError] = useState("");
 
-  // signup
+  /* ==== SIGNUP ==== */
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
+  const [signupPhone, setSignupPhone] = useState("");
   const [signupMessage, setSignupMessage] = useState("");
   const [signupError, setSignupError] = useState("");
 
+  /* ====================== LOGIN AVEC SUPABASE ====================== */
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginError("");
-    try {
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      console.log("Connexion réussie !");
-      // plus tard : router vers /coursier/tableau-de-bord
-    } catch (err: any) {
-      setLoginError(`Firebase: ${err.message || "connexion impossible"}`);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    });
+
+    if (error) {
+      setLoginError(error.message);
+    } else {
+      console.log("Connexion réussie ✅", data);
+      // plus tard : router vers /coursier
     }
   }
 
+  /* ====================== DEMANDE D'INSCRIPTION ====================== */
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setSignupError("");
     setSignupMessage("");
 
-    if (!firstName || !lastName || !signupEmail) {
+    if (!firstName || !lastName || !signupEmail || !signupPhone) {
       setSignupError("Remplis tous les champs.");
       return;
     }
 
-    try {
-      await addDoc(collection(db, "courier_signups"), {
+    const { error } = await supabase.from("courier_signups").insert([
+      {
         first_name: firstName,
         last_name: lastName,
         email: signupEmail,
-        created_at: serverTimestamp(),
+        phone: signupPhone,
         status: "pending",
-      });
-      setSignupMessage("Demande envoyée ✅ L’opérateur pourra créer ton accès.");
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    if (error) {
+      setSignupError(error.message);
+    } else {
+      setSignupMessage(
+        "Demande envoyée ✅ L’opérateur pourra créer ton accès."
+      );
       setFirstName("");
       setLastName("");
       setSignupEmail("");
-    } catch (err: any) {
-      setSignupError(`Firebase: ${err.message || "impossible d’enregistrer"}`);
+      setSignupPhone("");
     }
   }
 
@@ -131,6 +144,13 @@ export default function CoursierLoginPage() {
                 type="email"
                 value={signupEmail}
                 onChange={(e) => setSignupEmail(e.target.value)}
+              />
+              <input
+                className="w-full border rounded p-2"
+                placeholder="Téléphone"
+                type="tel"
+                value={signupPhone}
+                onChange={(e) => setSignupPhone(e.target.value)}
               />
               {signupError && (
                 <p className="text-red-600 text-sm">{signupError}</p>
