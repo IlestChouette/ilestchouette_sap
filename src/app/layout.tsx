@@ -1,17 +1,24 @@
+// src/app/layout.tsx
 import "./globals.css";
-import Entete from "../components/Entete";
+import type { Metadata } from "next";
+import SiteHeader from "./_components/SiteHeader";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Il est chouette",
-  description: "Plateforme de coursiers & services à la demande",
+  description:
+    "Coursier humain à Nice : courses, médicaments, colis, accompagnement… on facilite ton quotidien.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="fr">
-      <body className="min-h-screen text-slate-900 bg-white">
-        <Entete />
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <body className="bg-slate-50 text-slate-900">
+        <SiteHeader />
+        <main>{children}</main>
       </body>
     </html>
   );

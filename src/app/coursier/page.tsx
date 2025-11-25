@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "../_lib/supabaseClient";
+
+/* ================= TYPES ================= */
 
 type AssignmentStatus =
   | "assigned"
@@ -31,6 +33,8 @@ type Order = {
   express?: boolean;
   created_at?: string | null;
   validation_code?: string | null;
+  status?: string | null;
+  wants_invoice?: boolean | null;
 };
 
 type Availability = {
@@ -41,14 +45,32 @@ type Availability = {
   created_at?: string;
 };
 
-export default function CourierPage() {
-  // ====== "auth" très simple : on tape l'email et on se connecte ======
-  const [meEmail, setMeEmail] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState(""); // juste pour garder ton champ
-  const [err, setErr] = useState("");
+/* ================= COMPOSANT PRINCIPAL ================= */
 
-  // ====== data ======
+export default function CourierPage() {
+  /* ---------- SESSION SUPABASE / LOGIN VRAI ---------- */
+  const [meEmail, setMeEmail] = useState<string | null>(null);
+  const [loadingSession, setLoadingSession] = useState(true);
+
+  // onglet : login ou inscription
+  const [mode, setMode] = useState<"login" | "signup">("login");
+
+  // LOGIN
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPass, setLoginPass] = useState("");
+  const [loginErr, setLoginErr] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // SIGNUP (candidature)
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [signupMsg, setSignupMsg] = useState("");
+  const [signupErr, setSignupErr] = useState("");
+  const [signupLoading, setSignupLoading] = useState(false);
+
+  /* ---------- ESPACE COURSier : DONNÉES ---------- */
   const [assignments, setAssignments] = useState<
     (Assignment & { order?: Order })[]
   >([]);
@@ -57,36 +79,168 @@ export default function CourierPage() {
   const [availStart, setAvailStart] = useState("");
   const [availEnd, setAvailEnd] = useState("");
 
-  // états de clôture
+  /* ---- état pour clôturer une mission ---- */
   const [finishingId, setFinishingId] = useState<string | null>(null);
-  const [finishPayment, setFinishPayment] = useState<"cash" | "card" | "">("");
+  const [finishPayment, setFinishPayment] = useState<
+    "cash" | "card" | "to_pay" | ""
+  >("");
   const [finishCode, setFinishCode] = useState("");
   const [finishErr, setFinishErr] = useState("");
+  const [finishWantsInvoice, setFinishWantsInvoice] = useState<
+    "yes" | "no" | ""
+  >("");
 
-  // 65% pour le coursier
+  /* ---- changement de mot de passe ---- */
+  const [newPass, setNewPass] = useState("");
+  const [newPass2, setNewPass2] = useState("");
+  const [pwdMsg, setPwdMsg] = useState<string | null>(null);
+  const [pwdErr, setPwdErr] = useState<string | null>(null);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+
+  /* ---- calcul total gagné ---- */
   const totalBrutGagne = assignments
     .filter(
       (a) => a.order && (a.status === "acceptee" || a.status === "terminee")
     )
     .reduce((sum, a) => sum + a.order!.price_total * 0.65, 0);
 
-  /* ================= LOGIN ================= */
+  /* ---- gains par mois (AAAA-MM) ---- */
+  const gainsParMois = (() => {
+    const map = new Map<string, number>();
+    for (const a of assignments) {
+      if (!a.order || a.status !== "terminee") continue;
+      const dateStr = a.order.created_at || "";
+      if (!dateStr) continue;
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}`;
+      const montant = a.order.price_total * 0.65;
+      map.set(key, (map.get(key) || 0) + montant);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => (a < b ? 1 : -1))
+      .map(([mois, montant]) => ({ mois, montant }));
+  })();
+
+  /* ============== CHARGER SESSION (AU CHARGEMENT) ============== */
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error("Erreur getSession côté coursier :", error);
+        setLoadingSession(false);
+        setMeEmail(null);
+        return;
+      }
+
+      const session = data.session;
+      if (session?.user?.email) {
+        setMeEmail(session.user.email);
+      } else {
+        setMeEmail(null);
+      }
+      setLoadingSession(false);
+    })();
+  }, []);
+
+  /* ============== LOGIN SUPABASE ============== */
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setErr("");
-    if (!email) {
-      setErr("Saisis un email");
+    setLoginErr("");
+    setLoginLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginEmail.trim(),
+      password: loginPass,
+    });
+
+    setLoginLoading(false);
+
+    if (error) {
+      console.error("Erreur login coursier :", error);
+      setLoginErr(error.message || "Email ou mot de passe incorrect.");
       return;
     }
-    // ici on ne vérifie pas de mot de passe, on stocke juste l'email
-    setMeEmail(email.toLowerCase());
+
+    // connexion OK
+    setLoginErr("");
+    setLoginPass("");
+    const { data } = await supabase.auth.getUser();
+    setMeEmail(data.user?.email ?? null);
   }
 
-  /* ================= CHARGER DONNÉES ================= */
+  /* ============== CANDIDATURE COURSier (NOUVELLE VERSION) ============== */
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault();
+    setSignupErr("");
+    setSignupMsg("");
+    setSignupLoading(true);
+
+    if (!firstName || !lastName || !signupEmail || !phone) {
+      setSignupErr("Merci de remplir tous les champs.");
+      setSignupLoading(false);
+      return;
+    }
+
+    // Données communes BDD + email
+    const payload = {
+      first_name: firstName,
+      last_name: lastName,
+      email: signupEmail.trim(),
+      phone: phone.trim(),
+      status: "pending" as const,
+    };
+
+    // 1) Insert dans courier_signups
+    const { error } = await supabase.from("courier_signups").insert(payload);
+
+    if (error) {
+      console.error("Erreur inscription coursier :", error);
+      setSignupErr("Erreur : " + error.message);
+      setSignupLoading(false);
+      return;
+    }
+
+   // 2) Envoi des emails (candidat + équipe) via route API
+try {
+  const res = await fetch("/api/email/courier-signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      firstName,
+      lastName,
+      email: signupEmail.trim(),
+      phone: phone.trim(),
+    }),
+  });
+
+  // optionnel : petit log si tu veux vérifier
+  if (!res.ok) {
+    console.error("Erreur HTTP route courier-signup :", await res.json());
+  }
+} catch (err) {
+  console.error("Erreur lors de l'envoi des emails de candidature :", err);
+  // on ne bloque pas l'utilisateur si l'email échoue
+}
+
+    setSignupLoading(false);
+
+    setSignupMsg(
+      "Merci de vouloir faire partie de la communauté Il est chouette. Nous allons te contacter bientôt par téléphone ou par mail pour un entretien."
+    );
+    setFirstName("");
+    setLastName("");
+    setSignupEmail("");
+    setPhone("");
+  }
+
+  /* ============== CHARGER MISSIONS + DISPOS ============== */
   useEffect(() => {
     if (!meEmail) return;
 
-    // fonction pour charger missions + commandes
     const loadAssignments = async () => {
       const { data: assigns, error } = await supabase
         .from("assignments")
@@ -131,7 +285,7 @@ export default function CourierPage() {
     loadAssignments();
     loadAvailabilities();
 
-    // temps réel sur assignments pour ce coursier
+    /* temps réel sur assignments */
     const channel = supabase
       .channel("assignments-stream")
       .on(
@@ -143,13 +297,12 @@ export default function CourierPage() {
           filter: `courier_email=eq.${meEmail}`,
         },
         () => {
-          // on recharge
           loadAssignments();
         }
       )
       .subscribe();
 
-    // temps réel sur dispos
+    /* temps réel sur dispos */
     const channelAvail = supabase
       .channel("availabilities-stream")
       .on(
@@ -172,7 +325,7 @@ export default function CourierPage() {
     };
   }, [meEmail]);
 
-  /* ================= AJOUT DISPO ================= */
+  /* ============== AJOUT DISPONIBILITÉ ============== */
   async function addAvailability() {
     if (!meEmail) return;
     if (!availStart || !availEnd) return;
@@ -197,7 +350,7 @@ export default function CourierPage() {
     }
   }
 
-  /* ================= CLOTURER LIVRAISON ================= */
+  /* ============== CLOTURER LIVRAISON ============== */
   async function finishDelivery(a: Assignment & { order?: Order }) {
     setFinishErr("");
 
@@ -211,75 +364,289 @@ export default function CourierPage() {
       return;
     }
 
+    if (finishWantsInvoice === "") {
+      setFinishErr("Indique si le client souhaite une facture.");
+      return;
+    }
+    const wantsInvoiceBool = finishWantsInvoice === "yes";
+
+    /* 1) update assignment */
     const { error } = await supabase
       .from("assignments")
       .update({
         status: "terminee",
-        completed_at: new Date().toISOString(),
         payment_method: finishPayment,
         validated_with_code: !!finishCode,
       })
       .eq("id", a.id);
 
     if (error) {
+      console.error("Erreur update assignments.terminee", error);
       setFinishErr(error.message);
       return;
     }
 
+    /* 2) update order (status + wants_invoice) */
+    if (a.order_id) {
+      const { error: orderErr } = await supabase
+        .from("orders")
+        .update({
+          status: "terminee",
+          wants_invoice: wantsInvoiceBool,
+        })
+        .eq("id", a.order_id);
+
+      if (orderErr) {
+        console.error("Erreur update orders.terminee", orderErr);
+        setFinishErr(
+          "Livraison terminée mais erreur mise à jour commande : " +
+            orderErr.message
+        );
+      }
+    }
+
+    /* 2bis) mise à jour UI locale */
+    setAssignments((prev) =>
+      prev.map((item) =>
+        item.id === a.id
+          ? {
+              ...item,
+              status: "terminee",
+              order: item.order
+                ? {
+                    ...item.order,
+                    status: "terminee",
+                    wants_invoice: wantsInvoiceBool,
+                  }
+                : item.order,
+            }
+          : item
+      )
+    );
+
+    /* 3) event pour l’opérateur */
     await supabase.from("events").insert({
       type: "delivery_completed",
       courier_email: meEmail,
       assignment_id: a.id,
       order_id: a.order_id,
       payment_method: finishPayment,
-      needs_invoice: true,
+      needs_invoice: wantsInvoiceBool,
     });
 
     setFinishingId(null);
     setFinishPayment("");
     setFinishCode("");
     setFinishErr("");
+    setFinishWantsInvoice("");
   }
 
-  /* ================= UI CONNEXION ================= */
-  if (!meEmail) {
+  /* ============== CHANGER MOT DE PASSE ============== */
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwdMsg(null);
+    setPwdErr(null);
+
+    if (!newPass || newPass.length < 6) {
+      setPwdErr("Le nouveau mot de passe doit faire au moins 6 caractères.");
+      return;
+    }
+    if (newPass !== newPass2) {
+      setPwdErr("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPass });
+    if (error) {
+      console.error("Erreur update password:", error);
+      setPwdErr("Erreur : " + error.message);
+      return;
+    }
+
+    setPwdMsg("Mot de passe mis à jour ✅");
+    setNewPass("");
+    setNewPass2("");
+    setShowPasswordForm(false);
+  }
+
+  /* ============== LOGOUT ============== */
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    setMeEmail(null);
+  }
+
+  /* ============== UI : ÉTAT CHARGEMENT ============== */
+  if (loadingSession) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <form
-          onSubmit={handleLogin}
-          className="w-full max-w-sm bg-white shadow rounded p-6 space-y-4"
-        >
-          <h1 className="text-xl font-semibold text-center">Espace coursier</h1>
-          <input
-            className="border rounded px-3 py-2 w-full"
-            placeholder="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-          <input
-            className="border rounded px-3 py-2 w-full"
-            placeholder="mot de passe (pas utilisé)"
-            type="password"
-            value={pass}
-            onChange={(e) => setPass(e.target.value)}
-            autoComplete="current-password"
-          />
-          {err ? <p className="text-red-600 text-sm">{err}</p> : null}
-          <button
-            type="submit"
-            className="w-full bg-black text-white rounded py-2"
-          >
-            Se connecter
-          </button>
-        </form>
+      <main className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p>Chargement…</p>
       </main>
     );
   }
 
-  /* ================= UI PRINCIPALE ================= */
+  /* ============== UI : PAS CONNECTÉ → LOGIN + CANDIDATURE ============== */
+  if (!meEmail) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md bg-white shadow rounded p-6 space-y-4">
+          <h1 className="text-xl font-semibold text-center mb-2">
+            Espace coursier Il est chouette 🦉
+          </h1>
+
+          {/* Onglets */}
+          <div className="flex border-b text-sm">
+            <button
+              className={
+                "flex-1 py-2 text-center cursor-pointer " +
+                (mode === "login"
+                  ? "border-b-2 border-black font-semibold"
+                  : "text-gray-500")
+              }
+              onClick={() => setMode("login")}
+            >
+              Je suis déjà coursier
+            </button>
+            <button
+              className={
+                "flex-1 py-2 text-center cursor-pointer " +
+                (mode === "signup"
+                  ? "border-b-2 border-black font-semibold"
+                  : "text-gray-500")
+              }
+              onClick={() => setMode("signup")}
+            >
+              Je veux devenir coursier
+            </button>
+          </div>
+
+          {mode === "login" ? (
+            /* --------- FORMULAIRE LOGIN --------- */
+            <form onSubmit={handleLogin} className="space-y-3 mt-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Email
+                </label>
+                <input
+                  className="border rounded px-3 py-2 w-full text-sm"
+                  type="email"
+                  autoComplete="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="ton.email@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Mot de passe
+                </label>
+                <input
+                  className="border rounded px-3 py-2 w-full text-sm"
+                  type="password"
+                  autoComplete="current-password"
+                  value={loginPass}
+                  onChange={(e) => setLoginPass(e.target.value)}
+                  placeholder="********"
+                />
+              </div>
+              {loginErr && (
+                <p className="text-xs text-red-600">{loginErr}</p>
+              )}
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full bg-black text-white rounded py-2 text-sm disabled:opacity-60 cursor-pointer"
+              >
+                {loginLoading ? "Connexion..." : "Se connecter"}
+              </button>
+              <p className="text-[11px] text-gray-500 mt-1 text-center">
+                Le mot de passe t&apos;a été envoyé lorsque ton profil a été
+                validé par l&apos;équipe Il est chouette.
+              </p>
+            </form>
+          ) : (
+            /* --------- FORMULAIRE INSCRIPTION --------- */
+            <form onSubmit={handleSignup} className="space-y-3 mt-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Prénom
+                  </label>
+                  <input
+                    className="border rounded px-3 py-2 w-full text-sm"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Prénom"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Nom
+                  </label>
+                  <input
+                    className="border rounded px-3 py-2 w-full text-sm"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Nom"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Email
+                </label>
+                <input
+                  className="border rounded px-3 py-2 w-full text-sm"
+                  type="email"
+                  value={signupEmail}
+                  onChange={(e) => setSignupEmail(e.target.value)}
+                  placeholder="ton.email@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Téléphone
+                </label>
+                <input
+                  className="border rounded px-3 py-2 w-full text-sm"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+33..."
+                />
+              </div>
+
+              {signupErr && (
+                <p className="text-xs text-red-600">{signupErr}</p>
+              )}
+              {signupMsg && (
+                <p className="text-xs text-green-700">{signupMsg}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={signupLoading}
+                className="w-full bg-black text-white rounded py-2 text-sm disabled:opacity-60 cursor-pointer"
+              >
+                {signupLoading ? "Envoi..." : "Envoyer ma candidature"}
+              </button>
+
+              <p className="text-[11px] text-gray-500 mt-1 text-center">
+                Merci de vouloir faire partie de la communauté chouette 🎉 Nous
+                agissons pour améliorer le quotidien du monde. Nous te
+                contacterons bientôt par téléphone ou par mail pour un
+                entretien.
+              </p>
+            </form>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  /* ============== UI PRINCIPALE : COURSier CONNECTÉ ============== */
   return (
-    <main className="min-h-screen bg-gray-100 pb-20">
+    <main className="min-h-screen bg-gray-100 pb-20 text-slate-900 bg-white">
       {/* header */}
       <header className="bg-white shadow px-4 py-3 flex items-center justify-between">
         <div>
@@ -287,10 +654,8 @@ export default function CourierPage() {
           <p className="text-sm font-semibold break-all">{meEmail}</p>
         </div>
         <button
-          className="text-xs text-red-500"
-          onClick={() => {
-            setMeEmail(null);
-          }}
+          className="text-xs text-red-500 cursor-pointer"
+          onClick={handleLogout}
         >
           Déconnexion
         </button>
@@ -310,6 +675,87 @@ export default function CourierPage() {
             La plateforme Il est chouette retient 35 % de frais de service
             (dont 10 % pour la partie opérateur).
           </p>
+        </div>
+      </section>
+
+      {/* gains par mois */}
+      <section className="px-4 mt-4">
+        <div className="bg-white rounded-lg p-4">
+          <h2 className="text-sm font-semibold mb-2">Mes gains par mois</h2>
+          {gainsParMois.length === 0 ? (
+            <p className="text-xs text-gray-500">
+              Tu n&apos;as pas encore de missions terminées.
+            </p>
+          ) : (
+            <ul className="text-xs space-y-1">
+              {gainsParMois.map((g) => (
+                <li key={g.mois} className="flex justify-between">
+                  <span>{g.mois}</span>
+                  <span className="font-semibold">
+                    {g.montant.toFixed(2)} €
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* MON MOT DE PASSE (version propre) */}
+      <section className="px-4 mt-4">
+        <div className="bg-white rounded-lg p-4 space-y-2">
+          <h2 className="text-sm font-semibold">Mon mot de passe</h2>
+
+          {pwdMsg && <p className="text-xs text-green-600">{pwdMsg}</p>}
+          {pwdErr && <p className="text-xs text-red-600">{pwdErr}</p>}
+
+          {!showPasswordForm ? (
+            <button
+              type="button"
+              onClick={() => setShowPasswordForm(true)}
+              className="text-xs border rounded px-3 py-1 cursor-pointer bg-gray-50 hover:bg-gray-100"
+            >
+              Modifier mon mot de passe
+            </button>
+          ) : (
+            <form onSubmit={handleChangePassword} className="space-y-2">
+              <input
+                type="password"
+                className="border rounded px-2 py-1 w-full text-sm"
+                placeholder="Nouveau mot de passe"
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+              />
+              <input
+                type="password"
+                className="border rounded px-2 py-1 w-full text-sm"
+                placeholder="Confirmer le mot de passe"
+                value={newPass2}
+                onChange={(e) => setNewPass2(e.target.value)}
+              />
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="bg-black text-white text-xs rounded px-3 py-1 cursor-pointer"
+                >
+                  Mettre à jour mon mot de passe
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordForm(false);
+                    setPwdErr(null);
+                    setNewPass("");
+                    setNewPass2("");
+                  }}
+                  className="text-xs text-gray-500 cursor-pointer"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </section>
 
@@ -381,39 +827,117 @@ export default function CourierPage() {
                         <div className="flex gap-2 mt-3">
                           <button
                             onClick={async () => {
-                              await supabase
+                              const { error } = await supabase
                                 .from("assignments")
                                 .update({
                                   status: "acceptee",
-                                  accepted_at: new Date().toISOString(),
                                 })
                                 .eq("id", a.id);
+
+                              if (error) {
+                                console.error(
+                                  "Erreur update assignments.acceptee",
+                                  error
+                                );
+                                alert(
+                                  "Erreur pour accepter la mission : " +
+                                    error.message
+                                );
+                                return;
+                              }
+
+                              if (a.order_id) {
+                                await supabase
+                                  .from("orders")
+                                  .update({
+                                    status: "acceptee",
+                                  })
+                                  .eq("id", a.order_id);
+                              }
+
+                              setAssignments((prev) =>
+                                prev.map((item) =>
+                                  item.id === a.id
+                                    ? {
+                                        ...item,
+                                        status: "acceptee",
+                                        order: item.order
+                                          ? {
+                                              ...item.order,
+                                              status: "acceptee",
+                                            }
+                                          : item.order,
+                                      }
+                                    : item
+                                )
+                              );
+
                               await supabase.from("events").insert({
                                 type: "courier_accept",
                                 courier_email: meEmail,
                                 assignment_id: a.id,
+                                order_id: a.order_id,
                               });
                             }}
-                            className="bg-black text-white text-sm rounded px-3 py-1"
+                            className="bg-black text-white text-sm rounded px-3 py-1 cursor-pointer"
                           >
                             Accepter la mission
                           </button>
                           <button
                             onClick={async () => {
-                              await supabase
+                              const { error } = await supabase
                                 .from("assignments")
                                 .update({
                                   status: "refusee",
-                                  refused_at: new Date().toISOString(),
                                 })
                                 .eq("id", a.id);
+
+                              if (error) {
+                                console.error(
+                                  "Erreur update assignments.refusee",
+                                  error
+                                );
+                                alert(
+                                  "Erreur pour refuser la mission : " +
+                                    error.message
+                                );
+                                return;
+                              }
+
+                              if (a.order_id) {
+                                await supabase
+                                  .from("orders")
+                                  .update({
+                                    status: "refusee",
+                                  })
+                                  .eq("id", a.order_id);
+                              }
+
+                              setAssignments((prev) =>
+                                prev.map((item) =>
+                                  item.id === a.id
+                                    ? {
+                                        ...item,
+                                        status: "refusee",
+                                        order: item.order
+                                          ? {
+                                              ...item.order,
+                                              status: "refusee",
+                                            }
+                                          : item.order,
+                                      }
+                                    : item
+                                )
+                              );
+
                               await supabase.from("events").insert({
                                 type: "courier_refuse",
                                 courier_email: meEmail,
                                 assignment_id: a.id,
+                                order_id: a.order_id,
                               });
                             }}
-                            className="bg-gray-200 text-gray-800 text-sm rounded px-3 py-1"
+                            className="bg-gray-200 text-gray-800 text-sm rounded px-3 py-1 cursor-pointer"
                           >
                             Refuser
                           </button>
@@ -424,7 +948,7 @@ export default function CourierPage() {
                       {a.status === "acceptee" && (
                         <div className="mt-3 space-y-3">
                           <button
-                            className="bg-black text-white text-sm rounded px-3 py-1"
+                            className="bg-black text-white text-sm rounded px-3 py-1 cursor-pointer"
                             onClick={() => {
                               const pickup = encodeURIComponent(
                                 a.order!.pickup_address || ""
@@ -447,12 +971,13 @@ export default function CourierPage() {
 
                           {!isFinishing ? (
                             <button
-                              className="bg-green-100 text-green-800 text-xs rounded px-3 py-1"
+                              className="bg-green-100 text-green-800 text-xs rounded px-3 py-1 cursor-pointer"
                               onClick={() => {
                                 setFinishingId(a.id);
                                 setFinishPayment("");
                                 setFinishCode("");
                                 setFinishErr("");
+                                setFinishWantsInvoice("");
                               }}
                             >
                               Marquer comme livré
@@ -462,12 +987,14 @@ export default function CourierPage() {
                               <p className="text-xs font-semibold">
                                 Clôturer la livraison
                               </p>
-                              <div className="flex gap-2">
+
+                              {/* mode de paiement */}
+                              <div className="flex gap-2 flex-wrap">
                                 <button
                                   type="button"
                                   onClick={() => setFinishPayment("cash")}
                                   className={
-                                    "text-xs px-2 py-1 rounded border " +
+                                    "text-xs px-2 py-1 rounded border cursor-pointer " +
                                     (finishPayment === "cash"
                                       ? "bg-black text-white"
                                       : "")
@@ -479,7 +1006,7 @@ export default function CourierPage() {
                                   type="button"
                                   onClick={() => setFinishPayment("card")}
                                   className={
-                                    "text-xs px-2 py-1 rounded border " +
+                                    "text-xs px-2 py-1 rounded border cursor-pointer " +
                                     (finishPayment === "card"
                                       ? "bg-black text-white"
                                       : "")
@@ -487,30 +1014,86 @@ export default function CourierPage() {
                                 >
                                   CB
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFinishPayment("to_pay")}
+                                  className={
+                                    "text-xs px-2 py-1 rounded border cursor-pointer " +
+                                    (finishPayment === "to_pay"
+                                      ? "bg-black text-white"
+                                      : "")
+                                  }
+                                >
+                                  À régler
+                                </button>
                               </div>
+
+                              {/* code client */}
                               <input
                                 value={finishCode}
                                 onChange={(e) => setFinishCode(e.target.value)}
                                 className="border rounded px-2 py-1 w-full text-xs"
                                 placeholder="Code client (si demandé)"
                               />
+
+                              {/* facture oui/non */}
+                              <div className="space-y-1">
+                                <p className="text-xs">
+                                  Le client souhaite une facture ?
+                                </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setFinishWantsInvoice("yes")
+                                    }
+                                    className={
+                                      "text-xs px-2 py-1 rounded border cursor-pointer " +
+                                      (finishWantsInvoice === "yes"
+                                        ? "bg-black text-white"
+                                        : "")
+                                    }
+                                  >
+                                    Oui
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setFinishWantsInvoice("no")
+                                    }
+                                    className={
+                                      "text-xs px-2 py-1 rounded border cursor-pointer " +
+                                      (finishWantsInvoice === "no"
+                                        ? "bg-black text-white"
+                                        : "")
+                                    }
+                                  >
+                                    Non
+                                  </button>
+                                </div>
+                              </div>
+
                               {finishErr ? (
                                 <p className="text-xs text-red-600">
                                   {finishErr}
                                 </p>
                               ) : null}
+
                               <div className="flex gap-2">
                                 <button
-                                  className="bg-green-600 text-white text-xs rounded px-3 py-1"
+                                  className="bg-green-600 text-white text-xs rounded px-3 py-1 cursor-pointer"
                                   onClick={() => finishDelivery(a)}
                                 >
                                   Valider la livraison
                                 </button>
                                 <button
-                                  className="text-xs text-gray-500"
+                                  className="text-xs text-gray-500 cursor-pointer"
                                   onClick={() => {
                                     setFinishingId(null);
                                     setFinishErr("");
+                                    setFinishPayment("");
+                                    setFinishCode("");
+                                    setFinishWantsInvoice("");
                                   }}
                                 >
                                   Annuler
@@ -561,7 +1144,7 @@ export default function CourierPage() {
           <button
             disabled={isAddingAvail}
             onClick={addAvailability}
-            className="bg-black text-white rounded py-1 text-sm w-full disabled:opacity-60"
+            className="bg-black text-white rounded py-1 text-sm w-full disabled:opacity-60 cursor-pointer"
           >
             {isAddingAvail ? "Enregistrement..." : "Ajouter ma dispo"}
           </button>

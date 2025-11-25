@@ -1,29 +1,54 @@
+/* src/app/globals.css */
+
+/* === Tailwind v4 : import unique === */
 @import "tailwindcss";
 
+/* === Police Gotham === */
+
+@font-face {
+  font-family: "Gotham";
+  src: url("/fonts/GothamLight.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gotham";
+  src: url("/fonts/Gotham Book.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Gotham";
+  src: url("/fonts/GothamBold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Utilise Gotham partout */
+body {
+  font-family: "Gotham", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+/* --- Styles globaux --- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background-color: #f8fafc; /* même esprit que bg-slate-50 */
+  color: #020617;            /* proche de text-slate-900 */
+  font-family: "Gotham", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
 }
+
+/* --- Animation bandeau (marquee) --- */
 @keyframes marquee {
   0% {
     transform: translateX(100%);
