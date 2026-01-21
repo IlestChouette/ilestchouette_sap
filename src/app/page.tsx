@@ -7,7 +7,7 @@ import Script from "next/script";
 import { useEffect, useState } from "react";
 
 const WHATSAPP_URL =
-  "https://wa.me/33753001790?text=" +
+  "https://wa.me/33695427312?text=" +
   encodeURIComponent(
     "Bonjour, je voudrais commander une course avec Il est chouette."
   );
@@ -190,7 +190,7 @@ export default function HomePage() {
               image: "https://www.ilestchouette.fr/og-image.jpg",
               "@id": "https://www.ilestchouette.fr",
               url: "https://www.ilestchouette.fr",
-              telephone: "+33 7 53 00 17 90",
+              telephone: "+33 6 95 42 73 12",
               address: {
                 "@type": "PostalAddress",
                 streetAddress: "143 Promenade des Anglais",
@@ -290,11 +290,11 @@ export default function HomePage() {
 
                 {/* 👉 Bouton téléphone entre les deux */}
                 <a
-                  href="tel:+33753001790"
+                  href="tel:+33695427312"
                   className="inline-flex items-center justify-center rounded-full bg-slate-900/90 hover:bg-slate-900 text-sm md:text-base px-6 py-2.5 font-semibold shadow-md cursor-pointer"
                   onClick={() => trackEvent("click_phone_hero")}
                 >
-                  07 53 00 17 90
+                  06 95 42 73 12
                 </a>
 
                 <Link
@@ -520,10 +520,10 @@ export default function HomePage() {
                 pas.
               </p>
               <p className="text-sm">
-                📞 <span className="font-semibold">07 53 00 17 90</span>
+                📞 <span className="font-semibold">06 95 42 73 12</span>
                 <br />
                 💬 WhatsApp :{" "}
-                <span className="font-semibold">07 53 00 17 90</span>
+                <span className="font-semibold">06 95 42 73 12</span>
                 <br />
                 ✉️ Email :{" "}
                 <span className="font-semibold">allo@ilestchouette.fr</span>
