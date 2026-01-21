@@ -1,29 +1,41 @@
+// src/app/api/couriers/create/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../_lib/supabaseAdmin";
 import { Resend } from "resend";
 
+// === CONFIG RESEND ===
 const resendApiKey = process.env.RESEND_API_KEY;
-const fromAddress = process.env.EMAIL_FROM || "Il est chouette <no-reply@example.com>";
+
+// adresse d’envoi : on privilégie la variable d’env,
+// sinon on utilise directement l’adresse Il est chouette
+const fromAddress =
+  process.env.EMAIL_FROM || "Il est chouette <allo@ilestchouette.fr>";
+
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email, first_name, last_name, phone } = body;
+    const { email, first_name, last_name, phone } = body as {
+      email: string;
+      first_name?: string;
+      last_name?: string;
+      phone?: string;
+    };
 
     if (!email) {
       return NextResponse.json(
         { error: "Email manquant" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // 1) générer un mot de passe provisoire
+    // 1) Générer un mot de passe provisoire
     const password =
       Math.random().toString(36).slice(2, 6) +
       Math.random().toString(36).slice(2, 6);
 
-    // 2) créer l'utilisateur auth Supabase
+    // 2) Créer l'utilisateur auth Supabase
     const { data: userData, error: authErr } =
       await supabaseAdmin.auth.admin.createUser({
         email,
@@ -41,22 +53,29 @@ export async function POST(req: Request) {
       console.error("Erreur création user coursier :", authErr);
       return NextResponse.json(
         { error: authErr?.message || "Erreur création utilisateur" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
-    // 3) Option : insérer dans table "couriers" (si tu l'utilises)
-    try {
-      await supabaseAdmin.from("couriers").insert({
-        auth_user_id: userData.user.id,
+    // 3) Enregistrer dans la table "couriers"
+    //    (adapté à ta table : id (pk) auto, created_at default now(),
+    //     email, first_name, last_name, phone)
+    const { error: insertErr } = await supabaseAdmin
+      .from("couriers")
+      .insert({
         email,
-        first_name,
-        last_name,
-        phone,
-        created_at: new Date().toISOString(),
+        first_name: first_name ?? null,
+        last_name: last_name ?? null,
+        phone: phone ?? null,
+        // created_at est géré par la default value dans Supabase
       });
-    } catch (e) {
-      console.warn("Insertion couriers échouée (facultatif) :", e);
+
+    if (insertErr) {
+      console.error("Erreur insertion dans couriers :", insertErr);
+      return NextResponse.json(
+        { error: "Coursier créé dans Auth mais pas dans la table couriers" },
+        { status: 500 },
+      );
     }
 
     // 4) Envoyer l'email de bienvenue avec le mot de passe
@@ -66,6 +85,10 @@ export async function POST(req: Request) {
       const prenom = first_name || "";
       const nom = last_name || "";
 
+      const baseUrl =
+        process.env.NEXT_PUBLIC_BASE_URL || "https://ilestchouette.fr";
+      const loginUrl = `${baseUrl}/coursier`;
+
       await resend.emails.send({
         from: fromAddress,
         to: email,
@@ -73,38 +96,38 @@ export async function POST(req: Request) {
         html: `
           <p>Bonjour ${prenom || nom ? `${prenom} ${nom}`.trim() : ""},</p>
           <p>
-            Ta candidature a été acceptée, bienvenue dans l'équipe 
+            Ta candidature a été acceptée, bienvenue dans l'équipe
             <b>Il est chouette</b> 🦉.
           </p>
           <p>Voici tes accès à ton espace coursier :</p>
           <ul>
-            <li><b>Adresse de connexion :</b> <a href="${process.env.NEXT_PUBLIC_BASE_URL || "https://ilestchouette.fr"}/coursier">${process.env.NEXT_PUBLIC_BASE_URL || "https://ilestchouette.fr"}/coursier</a></li>
+            <li><b>Adresse de connexion :</b> <a href="${loginUrl}">${loginUrl}</a></li>
             <li><b>Email :</b> ${email}</li>
             <li><b>Mot de passe provisoire :</b> ${password}</li>
           </ul>
           <p>
-            Une fois connecté, pense à modifier ton mot de passe dans la rubrique 
+            Une fois connecté, pense à modifier ton mot de passe dans la rubrique
             <i>"Mon mot de passe"</i> de ton espace personnel.
           </p>
           <p>
-            Merci de faire partie de la communauté Il est chouette. Ensemble, 
+            Merci de faire partie de la communauté Il est chouette. Ensemble,
             nous agissons pour améliorer le quotidien des personnes que nous livrons.
           </p>
           <p>
-            À très bientôt sur la route,<br/>
+            À très bientôt sur la route,<br />
             <b>Chef d’équipe – Il est chouette</b>
           </p>
         `,
       });
     }
 
-    // 5) Réponse pour l'espace opérateur
+    // 5) Réponse pour l'espace opérateur (on renvoie le mdp pour l’afficher si besoin)
     return NextResponse.json({ password });
   } catch (e: any) {
     console.error("Erreur API /api/couriers/create :", e);
     return NextResponse.json(
       { error: "Erreur interne serveur" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

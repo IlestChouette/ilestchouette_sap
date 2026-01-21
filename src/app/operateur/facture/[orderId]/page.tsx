@@ -162,11 +162,19 @@ export default async function FacturePage({
     statutFacture = "Payée";
   }
 
+  // 7) Facture demandée ? (infos pour affichage)
+  let factureDemandeeLabel = "Non renseigné";
+  if (order.wants_invoice === true) {
+    factureDemandeeLabel = "Oui";
+  } else if (order.wants_invoice === false) {
+    factureDemandeeLabel = "Non";
+  }
+
   return (
     <main className="min-h-screen bg-gray-100 flex justify-center py-10">
       <div className="bg-white w-[800px] shadow-md p-10">
         {/* ENTÊTE */}
-        <header className="flex items-start justify_between mb-8">
+        <header className="flex items-start justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-orange-600">
               Il est chouette
@@ -194,7 +202,9 @@ export default async function FacturePage({
           <div>
             <p className="font-semibold mb-1">Facturé à :</p>
             <p>
-              {customer?.first_name} {customer?.last_name}
+              {customer?.first_name || customer?.last_name
+                ? `${customer?.first_name ?? ""} ${customer?.last_name ?? ""}`.trim()
+                : "Client particulier"}
             </p>
             {customer?.address && <p>{customer.address}</p>}
             {(customer?.zipcode || customer?.city) && (
@@ -202,7 +212,7 @@ export default async function FacturePage({
                 {customer?.zipcode} {customer?.city}
               </p>
             )}
-            <p>{customer?.phone}</p>
+            {customer?.phone && <p>{customer.phone}</p>}
           </div>
           <div className="text-right space-y-1">
             <p>
@@ -219,6 +229,11 @@ export default async function FacturePage({
             <p>
               <span className="font-semibold">Mode de règlement :</span>{" "}
               {modeReglement}
+            </p>
+            {/* ✅ Info : facture demandée ou non */}
+            <p>
+              <span className="font-semibold">Facture demandée par le client :</span>{" "}
+              {factureDemandeeLabel}
             </p>
           </div>
         </section>
@@ -252,11 +267,12 @@ export default async function FacturePage({
                       </div>
                     )}
                     {/* Infos livraison / accès */}
-                    {order.access_info && order.access_info.trim().length > 0 && (
-                      <div>
-                        <b>Infos livraison :</b> {order.access_info}
-                      </div>
-                    )}
+                    {order.access_info &&
+                      order.access_info.trim().length > 0 && (
+                        <div>
+                          <b>Infos livraison :</b> {order.access_info}
+                        </div>
+                      )}
                     {order.express && (
                       <div className="text-red-500">Option Express</div>
                     )}
