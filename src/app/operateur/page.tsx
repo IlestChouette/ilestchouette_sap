@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Script from "next/script";
 import Link from "next/link";
 import { supabase } from "../_lib/supabaseClient";
 
@@ -41,53 +40,71 @@ const HOURLY_MIN: Record<string, number> = {
   voiturier: 1,
 };
 
-/* ============== Hook Google prêt ============== */
-function useGoogleLoaded() {
-  return (
-    typeof window !== "undefined" &&
-    !!(window as any).google &&
-    !!(window as any).google.maps
-  );
-}
+/* ============== Autocomplete Nominatim (OpenStreetMap — gratuit) ============== */
+type NominatimSuggestion = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+};
 
-/* ============== Input avec autocomplete Google ============== */
-type AutoProps = {
+type NominatimProps = {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-  onPlace?: (p: google.maps.places.PlaceResult) => void;
+  onPlace?: (lat: number, lon: number, displayName: string) => void;
 };
 
-function AutocompleteInput({ value, onChange, placeholder, onPlace }: AutoProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const googleReady = useGoogleLoaded();
+function NominatimInput({ value, onChange, placeholder, onPlace }: NominatimProps) {
+  const [suggestions, setSuggestions] = useState<NominatimSuggestion[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!googleReady || !inputRef.current) return;
-    const ac = new (window as any).google.maps.places.Autocomplete(
-      inputRef.current!,
-      {
-        fields: ["formatted_address", "name", "geometry", "place_id"],
-        componentRestrictions: { country: ["fr"] },
-      },
-    );
-    ac.addListener("place_changed", () => {
-      const place = ac.getPlace();
-      const addr = place?.formatted_address || place?.name || "";
-      if (addr) onChange(addr);
-      onPlace?.(place);
-    });
-  }, [googleReady, onChange, onPlace]);
+  function handleChange(v: string) {
+    onChange(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSuggestions([]);
+    if (v.length < 3) return;
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(v)}&format=json&countrycodes=fr&limit=5`,
+          { headers: { "Accept-Language": "fr", "User-Agent": "ilestchouette-operateur/1.0" } },
+        );
+        const data: NominatimSuggestion[] = await res.json();
+        setSuggestions(data);
+      } catch {}
+    }, 500);
+  }
 
   return (
-    <input
-      ref={inputRef}
-      className="border rounded p-2 w-full"
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      autoComplete="off"
-    />
+    <div className="relative">
+      <input
+        className="border rounded p-2 w-full"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+        autoComplete="off"
+      />
+      {suggestions.length > 0 && (
+        <ul className="absolute z-50 bg-white border rounded w-full mt-1 max-h-48 overflow-auto shadow-lg text-sm">
+          {suggestions.map((s) => (
+            <li
+              key={s.place_id}
+              className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-0 truncate"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(s.display_name);
+                setSuggestions([]);
+                onPlace?.(parseFloat(s.lat), parseFloat(s.lon), s.display_name);
+              }}
+            >
+              {s.display_name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -126,10 +143,12 @@ type ServiceLine = {
   serviceType: string;
   pickup: string;
   pickupName: string;
+  pickupLat?: number;
+  pickupLon?: number;
   notes: string;
   distanceKm: number;
   price: number;
-  hours: number; // 🔹 nouveau
+  hours: number;
 };
 
 const newLine = (): ServiceLine => ({
@@ -137,20 +156,13 @@ const newLine = (): ServiceLine => ({
   serviceType: "supermarket",
   pickup: "",
   pickupName: "",
+  pickupLat: undefined,
+  pickupLon: undefined,
   notes: "",
   distanceKm: 0,
   price: 0,
   hours: 1,
 });
-
-/* ============= Helper pour nettoyer les adresses ============= */
-function cleanAddress(str: string): string {
-  if (!str) return "";
-  return str
-    .normalize("NFKD")
-    .replace(/[^\x00-\x7F]/g, "")
-    .trim();
-}
 
 /* ============= Helpers format date/heure ============= */
 function formatTimeRange(startIso: string, endIso: string): string {
@@ -179,9 +191,33 @@ function priceFor(serviceType: string, km: number, hours?: number) {
   return Math.round((s.base + extra) * 100) / 100;
 }
 
-export default function OperatorDashboard() {
-  const googleReady = useGoogleLoaded();
+/* ============= Badge de statut coloré ============= */
+const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
+  pending:  { label: "En attente",  cls: "bg-yellow-100 text-yellow-800" },
+  assigned: { label: "Assignée",    cls: "bg-blue-100 text-blue-800" },
+  acceptee: { label: "Acceptée",    cls: "bg-indigo-100 text-indigo-800" },
+  en_route: { label: "En route",    cls: "bg-purple-100 text-purple-800" },
+  terminee: { label: "Terminée ✓",  cls: "bg-green-100 text-green-800" },
+  annulee:  { label: "Annulée",     cls: "bg-gray-100 text-gray-600" },
+  refusee:  { label: "Refusée",     cls: "bg-red-100 text-red-700" },
+};
+function StatusBadge({ status }: { status: string }) {
+  const c = STATUS_CONFIG[status] ?? { label: status, cls: "bg-gray-100 text-gray-600" };
+  return (
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${c.cls}`}>
+      {c.label}
+    </span>
+  );
+}
 
+function paymentLabel(method: string | null | undefined) {
+  if (method === "cash") return "Espèces";
+  if (method === "card") return "CB";
+  if (method === "to_pay") return "À facturer";
+  return "—";
+}
+
+export default function OperatorDashboard() {
   /* ---- opérateur connecté ---- */
   const [meEmail, setMeEmail] = useState<string | null>(null);
   const [isOperator, setIsOperator] = useState<boolean | null>(null);
@@ -237,11 +273,9 @@ export default function OperatorDashboard() {
   const [signups, setSignups] = useState<any[]>([]);
   const [signupMsg, setSignupMsg] = useState("");
 
-  /* ---- CARTE GOOGLE (tournée) ---- */
-  const mapDivRef = useRef<HTMLDivElement | null>(null);
-  const [mapObj, setMapObj] = useState<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const directionsRef = useRef<any | null>(null);
+  /* ---- coords dropoff (pour calcul OSRM) ---- */
+  const [dropoffLat, setDropoffLat] = useState<number | null>(null);
+  const [dropoffLon, setDropoffLon] = useState<number | null>(null);
 
   /* ============================================================
    * 1. RÉCUPÉRER L’UTILISATEUR + VÉRIFIER S’IL EST OPÉRATEUR
@@ -407,12 +441,15 @@ export default function OperatorDashboard() {
     loadOrders(c.id);
   }
 
-  /* =================== DISTANCE & PRIX (par ligne) =================== */
-  async function computeDistanceForLine(line: ServiceLine, drop: string) {
+  /* =================== DISTANCE & PRIX via OSRM (gratuit) =================== */
+  async function computeDistanceForLine(
+    line: ServiceLine,
+    dLat: number,
+    dLon: number,
+  ) {
     const svc = getService(line.serviceType);
     if (!svc) return;
 
-    // 🔹 Pour les services à l’heure → pas de distance, pas d’appel Google
     if (svc.type === "hour") {
       const newPrice = priceFor(line.serviceType, 0, line.hours);
       setLines((prev) => {
@@ -426,37 +463,14 @@ export default function OperatorDashboard() {
       return;
     }
 
-    const originRaw = line.pickup;
-    const destRaw = drop;
-    if (!originRaw || !destRaw) return;
-
-    const g = (window as any).google;
-    if (!g?.maps?.DistanceMatrixService) return;
-
-    const origin = cleanAddress(originRaw);
-    const destination = cleanAddress(destRaw);
-    if (!origin || !destination) return;
+    if (!line.pickupLat || !line.pickupLon) return;
 
     try {
-      const svcDM = new g.maps.DistanceMatrixService();
-      const res: google.maps.DistanceMatrixResponse = await new Promise(
-        (resolve, reject) => {
-          svcDM.getDistanceMatrix(
-            {
-              origins: [origin],
-              destinations: [destination],
-              travelMode: g.maps.TravelMode.DRIVING,
-              unitSystem: g.maps.UnitSystem.METRIC,
-            },
-            (response: any, status: any) => {
-              if (status === "OK") resolve(response);
-              else reject(status);
-            },
-          );
-        },
+      const res = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${line.pickupLon},${line.pickupLat};${dLon},${dLat}?overview=false`,
       );
-
-      const meters = res.rows?.[0]?.elements?.[0]?.distance?.value ?? 0;
+      const data = await res.json();
+      const meters: number = data.routes?.[0]?.distance ?? 0;
       const km = Math.round((meters / 1000) * 100) / 100;
       const newPrice = priceFor(line.serviceType, km);
 
@@ -466,20 +480,20 @@ export default function OperatorDashboard() {
         ),
       );
     } catch (err) {
-      console.error("Erreur DistanceMatrix:", err);
+      console.error("Erreur OSRM:", err);
     }
   }
 
-  /* recalcul des distances si le dropoff change (seulement services flat) */
+  /* recalcul des distances si le dropoff change */
   useEffect(() => {
-    if (!dropoff) return;
+    if (!dropoffLat || !dropoffLon) return;
     lines.forEach((l) => {
       const svc = getService(l.serviceType);
       if (!svc || svc.type === "hour") return;
-      if (l.pickup) computeDistanceForLine(l, dropoff);
+      if (l.pickupLat && l.pickupLon) computeDistanceForLine(l, dropoffLat, dropoffLon);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dropoff]);
+  }, [dropoffLat, dropoffLon]);
 
   /* =================== SUPABASE : CLIENTS =================== */
 
@@ -1017,116 +1031,21 @@ export default function OperatorDashboard() {
     }
   }
 
-  /* =================== GOOGLE MAP : CARTE DE LA COMMANDE =================== */
-  useEffect(() => {
-    if (!googleReady) return;
-    if (!mapDivRef.current) return;
-    if (mapObj) return;
-
-    const g = (window as any).google;
-    if (!g?.maps) return;
-
-    const m = new g.maps.Map(mapDivRef.current, {
-      center: { lat: 43.695, lng: 7.265 },
-      zoom: 13,
-    });
-    setMapObj(m);
-  }, [googleReady, mapObj]);
-
-  useEffect(() => {
-    if (!googleReady || !mapObj) return;
-
-    const g = (window as any).google;
-    if (!g?.maps) return;
-
-    markersRef.current.forEach((mk) => mk.setMap(null));
-    markersRef.current = [];
-
-    if (directionsRef.current) {
-      directionsRef.current.setMap(null);
-      directionsRef.current = null;
-    }
-
-    const pickups = lines
-      .map((l) => l.pickup)
-      .filter((addr) => addr && addr.trim().length > 0);
-    const hasDropoff = dropoff && dropoff.trim().length > 0;
-
-    if (!hasDropoff && pickups.length === 0) return;
-
-    if (!hasDropoff || pickups.length === 0) {
-      const geocoder = new g.maps.Geocoder();
-      const addr = hasDropoff ? dropoff : pickups[0];
-
-      geocoder.geocode({ address: addr }, (results: any, status: any) => {
-        if (status === "OK" && results[0]) {
-          const loc = results[0].geometry.location;
-          const marker = new g.maps.Marker({
-            map: mapObj,
-            position: loc,
-            label: hasDropoff ? "Client" : "P1",
-          });
-          markersRef.current.push(marker);
-          mapObj.setCenter(loc);
-          mapObj.setZoom(13);
-        }
-      });
-      return;
-    }
-
-    const origin = pickups[0];
-    const destination = dropoff;
-    const waypoints = pickups.slice(1).map((addr) => ({
-      location: addr,
-      stopover: true,
-    }));
-
-    const directionsService = new g.maps.DirectionsService();
-
-    if (!directionsRef.current) {
-      directionsRef.current = new g.maps.DirectionsRenderer({
-        suppressMarkers: false,
-      });
-      directionsRef.current.setMap(mapObj);
-    }
-
-    directionsService.route(
-      {
-        origin,
-        destination,
-        waypoints,
-        optimizeWaypoints: true,
-        travelMode: g.maps.TravelMode.DRIVING,
-      },
-      (result: any, status: any) => {
-        if (status === "OK" && result) {
-          directionsRef.current!.setDirections(result);
-        } else {
-          console.error("Erreur DirectionsService :", status, result);
-        }
-      },
-    );
-  }, [googleReady, mapObj, dropoff, lines]);
 
   /* =================== RENDER =================== */
   return (
     <>
-      <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GMAPS_API_KEY}&libraries=places&language=fr`}
-        strategy="afterInteractive"
-      />
-
-      <main className="max-w-3xl mx-auto p-6 font-sans space-y-4">
-        <header className="flex items-center justify-between gap-4">
+      <main className="max-w-3xl mx-auto p-6 font-sans space-y-4 bg-gray-50 min-h-screen">
+        <header className="flex items-center justify-between gap-4 pb-2 border-b">
           <div>
-            <h1 className="text-2xl font-semibold">Espace opérateur</h1>
-            <p className="text-sm text-gray-600">Connecté : {meEmail ?? "—"}</p>
+            <h1 className="text-2xl font-bold text-gray-900">Espace opérateur</h1>
+            <p className="text-sm text-gray-500">{meEmail ?? "—"}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded cursor-pointer"
+            className="text-sm bg-gray-100 hover:bg-gray-200 border px-3 py-1.5 rounded-lg cursor-pointer text-gray-700"
           >
-            Se déconnecter
+            Déconnexion
           </button>
         </header>
 
@@ -1150,7 +1069,7 @@ export default function OperatorDashboard() {
         ) : (
           <>
             {/* DEMANDES DE COURSIERS */}
-            <section className="p-4 border rounded space-y-3">
+            <section className="p-4 border rounded-lg bg-white shadow-sm space-y-3">
               <h2 className="font-semibold text-lg">Demandes de coursiers</h2>
               {signupMsg ? <p className="text-sm">{signupMsg}</p> : null}
               {signups.length === 0 ? (
@@ -1228,11 +1147,15 @@ export default function OperatorDashboard() {
               >
                 Rechercher
               </button>
-              <p className="text-sm mt-2">{info}</p>
+              {info && (
+                <p className={`text-sm mt-2 font-medium ${info.includes("✅") ? "text-green-700" : info.includes("Erreur") ? "text-red-600" : "text-gray-700"}`}>
+                  {info}
+                </p>
+              )}
             </section>
 
             {/* FICHE CLIENT */}
-            <section className="p-4 border rounded space-y-2">
+            <section className="p-4 border rounded-lg bg-white shadow-sm space-y-2">
               <h2 className="font-semibold">Client</h2>
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -1283,7 +1206,7 @@ export default function OperatorDashboard() {
             </section>
 
             {/* NOUVELLE COMMANDE */}
-            <section className="p-4 border rounded space-y-3">
+            <section className="p-4 border rounded-lg bg-white shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">Nouvelle commande</h2>
                 <button
@@ -1345,10 +1268,11 @@ export default function OperatorDashboard() {
                             }),
                           );
 
-                          if (l.pickup && dropoff && newSvc?.type === "flat") {
+                          if (l.pickupLat && l.pickupLon && dropoffLat && dropoffLon && newSvc?.type === "flat") {
                             computeDistanceForLine(
                               { ...l, serviceType: val },
-                              dropoff,
+                              dropoffLat,
+                              dropoffLon,
                             );
                           }
                         }}
@@ -1359,39 +1283,31 @@ export default function OperatorDashboard() {
                           </option>
                         ))}
                       </select>
-                      <AutocompleteInput
+                      <NominatimInput
                         placeholder="Commerce / adresse pickup"
                         value={l.pickup}
                         onChange={(v) =>
                           setLines((prev) =>
                             prev.map((x) =>
-                              x.id === l.id ? { ...x, pickup: v } : x,
+                              x.id === l.id ? { ...x, pickup: v, pickupLat: undefined, pickupLon: undefined } : x,
                             ),
                           )
                         }
-                        onPlace={(p) => {
-                          const full =
-                            (p.name ? p.name + " — " : "") +
-                            (p.formatted_address || p.name || "");
+                        onPlace={(lat, lon, displayName) => {
+                          const namePart = displayName.split(",")[0].trim();
                           setLines((prev) =>
                             prev.map((x) =>
                               x.id === l.id
-                                ? {
-                                    ...x,
-                                    pickup: full,
-                                    pickupName: p.name || "",
-                                  }
+                                ? { ...x, pickupLat: lat, pickupLon: lon, pickupName: namePart }
                                 : x,
                             ),
                           );
                           const svcHere = getService(l.serviceType);
-                          if (dropoff && svcHere?.type === "flat") {
+                          if (dropoffLat && dropoffLon && svcHere?.type === "flat") {
                             computeDistanceForLine(
-                              {
-                                ...l,
-                                pickup: full,
-                              },
-                              dropoff,
+                              { ...l, pickupLat: lat, pickupLon: lon },
+                              dropoffLat,
+                              dropoffLon,
                             );
                           }
                         }}
@@ -1461,10 +1377,18 @@ export default function OperatorDashboard() {
               })}
 
               <p className="text-sm text-gray-500">Adresse de livraison (dropoff)</p>
-              <AutocompleteInput
+              <NominatimInput
                 placeholder="Ex. 143 promenade des Anglais, Nice"
                 value={dropoff}
-                onChange={setDropoff}
+                onChange={(v) => {
+                  setDropoff(v);
+                  setDropoffLat(null);
+                  setDropoffLon(null);
+                }}
+                onPlace={(lat, lon) => {
+                  setDropoffLat(lat);
+                  setDropoffLon(lon);
+                }}
               />
 
               <textarea
@@ -1514,27 +1438,17 @@ export default function OperatorDashboard() {
                 </span>
               </div>
 
-              <div className="p-3 bg-gray-50 border rounded">
-                <b>Total à facturer :</b>{" "}
-                {totalToBill
-                  ? `${totalToBill.toFixed(2)} €`
-                  : "— (attend adresses/distance) —"}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                <span className="font-semibold text-blue-900">Total à facturer</span>
+                <span className="text-xl font-bold text-blue-900">
+                  {totalToBill ? `${totalToBill.toFixed(2)} €` : "—"}
+                </span>
               </div>
 
-              {/* Carte de la commande */}
-              <div className="mt-4">
-                <p className="text-sm text-gray-500 mb-1">
-                  Carte de la tournée (pickups + client)
-                </p>
-                <div
-                  ref={mapDivRef}
-                  className="w-full h-64 border rounded bg-gray-100"
-                />
-              </div>
             </section>
 
             {/* PLANIFIER */}
-            <section className="p-4 border rounded space-y-3">
+            <section className="p-4 border rounded-lg bg-white shadow-sm space-y-3">
               <h2 className="font-semibold">Planifier</h2>
               <div className="flex flex-wrap gap-2 items-center">
                 <input
@@ -1615,7 +1529,7 @@ export default function OperatorDashboard() {
             </section>
 
             {/* PLANNING GLOBAL DES COURSIERS */}
-            <section className="p-4 border rounded space-y-3">
+            <section className="p-4 border rounded-lg bg-white shadow-sm space-y-3">
               <h2 className="font-semibold">Planning des coursiers</h2>
               <div className="flex flex-wrap gap-2 items-center">
                 <input
@@ -1679,15 +1593,15 @@ export default function OperatorDashboard() {
 
             <div className="flex justify-end">
               <button
-                className="bg-black text-white rounded px-4 py-2 cursor-pointer"
+                className="bg-blue-700 hover:bg-blue-800 text-white rounded-lg px-5 py-2.5 font-semibold cursor-pointer transition-colors"
                 onClick={createOrders}
               >
-                Créer la / les commande(s)
+                ✓ Créer la commande
               </button>
             </div>
 
             {/* HISTORIQUE CLIENT */}
-            <section className="p-4 border rounded space-y-2">
+            <section className="p-4 border rounded-lg bg-white shadow-sm space-y-2">
               <h2 className="font-semibold mb-2">Données client</h2>
               {orders.length > 0 ? (
                 <>
@@ -1715,71 +1629,56 @@ export default function OperatorDashboard() {
                   </div>
                   <ul className="space-y-2">
                     {orders.map((o) => (
-                      <li key={o.id} className="border rounded p-2 text-sm">
-                        <div>
-                          <b>Type:</b> {o.service_type} — <b>Prix:</b> €
-                          {o.price_total} — <b>Statut:</b> {o.status}
-                        </div>
-
-                        <div className="text-xs text-gray-700 mt-1">
-                          <b>Règlement :</b>{" "}
-                          {o.status !== "terminee"
-                            ? "À régler"
-                            : o.payment_method === "cash"
-                            ? "Espèces"
-                            : o.payment_method === "card"
-                            ? "CB"
-                            : "Non renseigné"}
-                        </div>
-
-                        <div className="truncate">
-                          <b>Pickup:</b> {o.pickup_address}
-                        </div>
-                        <div className="truncate">
-                          <b>Dropoff:</b> {o.dropoff_address}
-                        </div>
-
-                        {o.express ? (
-                          <div className="text-red-500 text-xs">Express</div>
-                        ) : null}
-
-                        {o.validation_code ? (
-                          <div className="text-xs text-gray-500">
-                            Code validation : {o.validation_code}
-                          </div>
-                        ) : null}
-
-                        {typeof o.wants_invoice === "boolean" && (
-                          <div className="text-xs">
-                            Facture demandée :{" "}
-                            <span
-                              className={
-                                o.wants_invoice
-                                  ? "text-green-600 font-semibold"
-                                  : "text-red-600 font-semibold"
-                              }
-                            >
-                              {o.wants_invoice ? "oui" : "non"}
+                      <li key={o.id} className="border rounded-lg p-3 text-sm bg-white shadow-sm space-y-1">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <StatusBadge status={o.status} />
+                            {o.express && (
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                                🚨 Express
+                              </span>
+                            )}
+                            <span className="font-semibold text-gray-800">
+                              {getService(o.service_type)?.label ?? o.service_type}
                             </span>
                           </div>
-                        )}
+                          <span className="font-bold text-gray-900">{o.price_total} €</span>
+                        </div>
+
+                        <div className="text-xs text-gray-500 truncate">
+                          🔵 {o.pickup_address}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">
+                          🟢 {o.dropoff_address}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-gray-600 flex-wrap pt-1">
+                          <span>💳 {paymentLabel(o.payment_method)}</span>
+                          {o.validation_code && (
+                            <span>🔐 Code : <b>{o.validation_code}</b></span>
+                          )}
+                          {typeof o.wants_invoice === "boolean" && (
+                            <span>
+                              🧾 Facture :{" "}
+                              <span className={o.wants_invoice ? "text-green-600 font-semibold" : "text-gray-500"}>
+                                {o.wants_invoice ? "oui" : "non"}
+                              </span>
+                            </span>
+                          )}
+                        </div>
 
                         {o.status === "terminee" && o.wants_invoice && (
-                          <div className="mt-1">
-                            <Link
-                              href={`/operateur/facture/${o.id}`}
-                              target="_blank"
-                              className="inline-block text-xs bg-black text-white rounded px-2 py-1 mt-1 cursor-pointer"
-                            >
-                              Voir / imprimer la facture
-                            </Link>
-                          </div>
+                          <Link
+                            href={`/operateur/facture/${o.id}`}
+                            target="_blank"
+                            className="inline-block text-xs bg-black text-white rounded px-2 py-1 mt-1 cursor-pointer"
+                          >
+                            Voir / imprimer la facture
+                          </Link>
                         )}
 
-                        <div className="text-gray-500">
-                          {o.created_at
-                            ? new Date(o.created_at).toLocaleString()
-                            : ""}
+                        <div className="text-xs text-gray-400">
+                          {o.created_at ? new Date(o.created_at).toLocaleString("fr-FR") : ""}
                         </div>
                       </li>
                     ))}
