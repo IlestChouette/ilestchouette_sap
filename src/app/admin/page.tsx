@@ -242,6 +242,13 @@ export default function AdminPage() {
   /* ─── Computed ─── */
   const currentMonth = nowMonth();
 
+  // Exercice fiscal courant : démarre en mai
+  const fiscalYearStart = useMemo(() => {
+    const now = new Date();
+    const fyStartYear = now.getMonth() + 1 >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+    return new Date(fyStartYear, 4, 1); // 1er mai
+  }, []);
+
   const completedOrders = useMemo(
     () => orders.filter((o) => o.status === "terminee"),
     [orders],
@@ -267,6 +274,19 @@ export default function AdminPage() {
     [completedThisMonth],
   );
 
+  const caThisFiscalYear = useMemo(
+    () =>
+      completedOrders
+        .filter((o) => new Date(o.created_at) >= fiscalYearStart)
+        .reduce((s, o) => s + (o.price_total ?? 0), 0),
+    [completedOrders, fiscalYearStart],
+  );
+
+  const fiscalYearLabel = useMemo(() => {
+    const y = fiscalYearStart.getFullYear();
+    return `Mai ${y} – Avr ${y + 1}`;
+  }, [fiscalYearStart]);
+
   /* CA par mois (12 derniers mois) */
   const caByMonth = useMemo(() => {
     const map: Record<string, number> = {};
@@ -286,12 +306,17 @@ export default function AdminPage() {
     }));
   }, [completedOrders]);
 
-  /* CA annuel par année */
+  /* CA annuel par exercice fiscal (mai → avril) */
   const caByYear = useMemo(() => {
     const map: Record<string, number> = {};
     completedOrders.forEach((o) => {
-      const y = o.created_at.slice(0, 4);
-      map[y] = (map[y] ?? 0) + (o.price_total ?? 0);
+      const d = new Date(o.created_at);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1; // 1-12
+      // Si mois < 5 (jan-avr), on appartient à l'exercice de l'année précédente
+      const fyStart = m >= 5 ? y : y - 1;
+      const key = `${fyStart}-${String(fyStart + 1).slice(-2)}`;
+      map[key] = (map[key] ?? 0) + (o.price_total ?? 0);
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -487,6 +512,12 @@ export default function AdminPage() {
               color="green"
             />
             <KpiCard
+              label="CA exercice fiscal"
+              value={fmtEuro(caThisFiscalYear)}
+              sub={fiscalYearLabel}
+              color="purple"
+            />
+            <KpiCard
               label="Commandes totales"
               value={String(orders.length)}
               sub={ordersThisMonth.length + " ce mois"}
@@ -544,7 +575,7 @@ export default function AdminPage() {
 
           {/* ── Facturation annuelle + services ── */}
           <div className="grid md:grid-cols-2 gap-6">
-            <Section title="Facturation annuelle">
+            <Section title="Facturation par exercice fiscal (mai → avril)">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={caByYear} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
