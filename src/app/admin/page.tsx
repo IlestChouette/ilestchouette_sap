@@ -15,7 +15,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 import { supabase } from "../_lib/supabaseClient";
@@ -25,6 +24,7 @@ const AdminMap = dynamic(() => import("./AdminMap"), { ssr: false });
 
 /* ─── Auth ─────────────────────────────────────────── */
 const ADMIN_EMAIL = "allo@ilestchouette.fr";
+const ADMIN_PASSWORD = "Bogota841219@@";
 
 /* ─── Types ─────────────────────────────────────────── */
 type Order = {
@@ -58,6 +58,18 @@ type Courier = {
   email: string;
   first_name: string | null;
   last_name: string | null;
+};
+
+type Customer = {
+  id: string;
+  phone: string;
+  first_name: string | null;
+  last_name: string | null;
+  address: string | null;
+  zipcode: string | null;
+  city: string | null;
+  preferences: string | null;
+  created_at: string;
 };
 
 /* ─── Constantes ─────────────────────────────────────── */
@@ -160,6 +172,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function AdminPage() {
   /* ─── Auth ─── */
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [authed, setAuthed] = useState(false);
   const [authErr, setAuthErr] = useState("");
 
@@ -168,11 +181,14 @@ export default function AdminPage() {
   }, []);
 
   function handleLogin() {
-    if (email.trim().toLowerCase() === ADMIN_EMAIL) {
+    if (
+      email.trim().toLowerCase() === ADMIN_EMAIL &&
+      password === ADMIN_PASSWORD
+    ) {
       sessionStorage.setItem("admin_authed", ADMIN_EMAIL);
       setAuthed(true);
     } else {
-      setAuthErr("Accès refusé.");
+      setAuthErr("Email ou mot de passe incorrect.");
     }
   }
 
@@ -180,8 +196,11 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
-  const [customersCount, setCustomersCount] = useState(0);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* ─── Client modal ─── */
+  const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
 
   /* ─── Filters ─── */
   const [filterMonth, setFilterMonth] = useState("");
@@ -199,12 +218,12 @@ export default function AdminPage() {
         supabase.from("orders").select("*").order("created_at", { ascending: false }),
         supabase.from("assignments").select("*").order("assigned_at", { ascending: false }),
         supabase.from("couriers").select("*"),
-        supabase.from("customers").select("id", { count: "exact", head: true }),
+        supabase.from("customers").select("*").order("created_at", { ascending: false }),
       ]);
       if (ordRes.data) setOrders(ordRes.data as Order[]);
       if (assRes.data) setAssignments(assRes.data as Assignment[]);
       if (courRes.data) setCouriers(courRes.data as Courier[]);
-      setCustomersCount(custRes.count ?? 0);
+      if (custRes.data) setCustomers(custRes.data as Customer[]);
       setLoading(false);
     }
 
@@ -396,6 +415,14 @@ export default function AdminPage() {
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
           />
+          <input
+            className="border border-gray-200 rounded-xl p-3 w-full mb-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Mot de passe"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+          />
           {authErr && <p className="text-red-500 text-xs mb-3">{authErr}</p>}
           <button
             onClick={handleLogin}
@@ -467,7 +494,7 @@ export default function AdminPage() {
             />
             <KpiCard
               label="Clients"
-              value={String(customersCount)}
+              value={String(customers.length)}
               sub="inscrits"
               color="purple"
             />
@@ -789,9 +816,271 @@ export default function AdminPage() {
             </div>
           </Section>
 
+          {/* ── Liste clients ── */}
+          <Section title={`Clients (${customers.length})`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
+                    <th className="pb-3 pr-4">Nom</th>
+                    <th className="pb-3 pr-4">Téléphone</th>
+                    <th className="pb-3 pr-4">Ville</th>
+                    <th className="pb-3 pr-4 text-right">Commandes</th>
+                    <th className="pb-3 text-right">CA total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map((c) => {
+                    const cOrders = orders.filter((o) => o.customer_id === c.id);
+                    const cCA = cOrders
+                      .filter((o) => o.status === "terminee")
+                      .reduce((s, o) => s + (o.price_total ?? 0), 0);
+                    const name =
+                      [c.first_name, c.last_name].filter(Boolean).join(" ") || "—";
+                    return (
+                      <tr
+                        key={c.id}
+                        className="border-b border-gray-50 hover:bg-blue-50 cursor-pointer transition"
+                        onClick={() => setSelectedClient(c)}
+                      >
+                        <td className="py-3 pr-4">
+                          <p className="font-medium text-blue-700 hover:underline">{name}</p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(c.created_at).toLocaleDateString("fr-FR")}
+                          </p>
+                        </td>
+                        <td className="py-3 pr-4 text-gray-700">{c.phone}</td>
+                        <td className="py-3 pr-4 text-gray-500">
+                          {[c.city, c.zipcode].filter(Boolean).join(" ") || "—"}
+                        </td>
+                        <td className="py-3 pr-4 text-right text-gray-700">{cOrders.length}</td>
+                        <td className="py-3 text-right font-semibold text-gray-900">
+                          {fmtEuro(cCA)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {customers.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-gray-400">
+                        Aucun client enregistré.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          {/* ── Factures ── */}
+          <Section title="Factures demandées">
+            <p className="text-xs text-gray-400 mb-4">
+              Commandes pour lesquelles le client a demandé une facture.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
+                    <th className="pb-3 pr-4">Date</th>
+                    <th className="pb-3 pr-4">Service</th>
+                    <th className="pb-3 pr-4">Client</th>
+                    <th className="pb-3 pr-4">Pickup</th>
+                    <th className="pb-3 pr-4">Dropoff</th>
+                    <th className="pb-3 pr-4">Statut</th>
+                    <th className="pb-3 text-right">Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders
+                    .filter((o) => (o as any).wants_invoice)
+                    .map((o) => {
+                      const cust = customers.find((c) => c.id === o.customer_id);
+                      const custName = cust
+                        ? [cust.first_name, cust.last_name].filter(Boolean).join(" ") || cust.phone
+                        : "—";
+                      const statusColor = STATUS_COLORS[o.status] ?? "#9ca3af";
+                      return (
+                        <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">
+                            {new Date(o.created_at).toLocaleDateString("fr-FR", {
+                              day: "2-digit", month: "short", year: "2-digit",
+                            })}
+                          </td>
+                          <td className="py-3 pr-4 font-medium text-gray-800">
+                            {SERVICES[o.service_type] ?? o.service_type}
+                          </td>
+                          <td className="py-3 pr-4 text-gray-700">{custName}</td>
+                          <td className="py-3 pr-4 text-gray-500 max-w-36 truncate">
+                            {o.pickup_address}
+                          </td>
+                          <td className="py-3 pr-4 text-gray-500 max-w-36 truncate">
+                            {o.dropoff_address}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span
+                              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                              style={{ background: statusColor + "22", color: statusColor }}
+                            >
+                              {STATUS_LABELS[o.status] ?? o.status}
+                            </span>
+                          </td>
+                          <td className="py-3 text-right font-bold text-gray-900">
+                            {fmtEuro(o.price_total)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {orders.filter((o) => (o as any).wants_invoice).length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-400">
+                        Aucune facture demandée pour le moment.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
           <p className="text-center text-xs text-gray-300 pb-6">
             Il est Chouette · Dashboard Admin · Données en temps réel
           </p>
+
+          {/* ── Modal client ── */}
+          {selectedClient && (
+            <div
+              className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+              onClick={() => setSelectedClient(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header modal */}
+                <div className="flex items-start justify-between p-6 border-b border-gray-100">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">
+                      {[selectedClient.first_name, selectedClient.last_name]
+                        .filter(Boolean)
+                        .join(" ") || "Client sans nom"}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-0.5">{selectedClient.phone}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedClient(null)}
+                    className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                {/* Infos client */}
+                <div className="p-6 grid grid-cols-2 gap-4 border-b border-gray-100">
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Adresse</p>
+                    <p className="text-sm text-gray-800">
+                      {[selectedClient.address, selectedClient.zipcode, selectedClient.city]
+                        .filter(Boolean)
+                        .join(", ") || "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Client depuis</p>
+                    <p className="text-sm text-gray-800">
+                      {new Date(selectedClient.created_at).toLocaleDateString("fr-FR", {
+                        day: "numeric", month: "long", year: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  {selectedClient.preferences && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Notes / Préférences</p>
+                      <p className="text-sm text-gray-800 bg-yellow-50 rounded-lg p-3">
+                        {selectedClient.preferences}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Commandes du client */}
+                <div className="p-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                    Historique des commandes (
+                    {orders.filter((o) => o.customer_id === selectedClient.id).length})
+                  </h3>
+                  {(() => {
+                    const clientOrders = orders.filter((o) => o.customer_id === selectedClient.id);
+                    const clientCA = clientOrders
+                      .filter((o) => o.status === "terminee")
+                      .reduce((s, o) => s + (o.price_total ?? 0), 0);
+                    return (
+                      <>
+                        <div className="flex gap-4 mb-4">
+                          <div className="bg-blue-50 rounded-xl p-3 flex-1 text-center">
+                            <p className="text-2xl font-bold text-blue-700">{clientOrders.length}</p>
+                            <p className="text-xs text-blue-500">Commandes</p>
+                          </div>
+                          <div className="bg-emerald-50 rounded-xl p-3 flex-1 text-center">
+                            <p className="text-2xl font-bold text-emerald-700">{fmtEuro(clientCA)}</p>
+                            <p className="text-xs text-emerald-500">CA total</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {clientOrders.map((o) => {
+                            const statusColor = STATUS_COLORS[o.status] ?? "#9ca3af";
+                            const asgn = assignments.find((a) => a.order_id === o.id);
+                            const courier = asgn
+                              ? couriers.find((c) => c.email === asgn.courier_email)
+                              : null;
+                            return (
+                              <div
+                                key={o.id}
+                                className="border border-gray-100 rounded-xl p-4 hover:border-gray-200 transition"
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                                      style={{ background: statusColor + "22", color: statusColor }}
+                                    >
+                                      {STATUS_LABELS[o.status] ?? o.status}
+                                    </span>
+                                    <span className="text-xs text-gray-400">
+                                      {new Date(o.created_at).toLocaleDateString("fr-FR")}
+                                    </span>
+                                  </div>
+                                  <span className="font-bold text-gray-900">
+                                    {fmtEuro(o.price_total)}
+                                  </span>
+                                </div>
+                                <p className="text-sm font-medium text-gray-800">
+                                  {SERVICES[o.service_type] ?? o.service_type}
+                                  {o.express && <span className="ml-1 text-red-500 text-xs">⚡ Express</span>}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate mt-1">
+                                  {o.pickup_address} → {o.dropoff_address}
+                                </p>
+                                {courier && (
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    Coursier : {courier.first_name} {courier.last_name}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {clientOrders.length === 0 && (
+                            <p className="text-sm text-gray-400 text-center py-6">
+                              Aucune commande pour ce client.
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       )}
     </div>
