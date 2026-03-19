@@ -1,0 +1,799 @@
+"use client";
+
+import { useEffect, useState, useMemo } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import { supabase } from "../_lib/supabaseClient";
+import type { HeatPoint } from "./AdminMap";
+
+const AdminMap = dynamic(() => import("./AdminMap"), { ssr: false });
+
+/* ─── Auth ─────────────────────────────────────────── */
+const ADMIN_EMAIL = "allo@ilestchouette.fr";
+
+/* ─── Types ─────────────────────────────────────────── */
+type Order = {
+  id: string;
+  service_type: string;
+  pickup_address: string;
+  dropoff_address: string;
+  price_total: number;
+  status: string;
+  created_at: string;
+  express: boolean | null;
+  distance_km: number | null;
+  dropoff_lat: number | null;
+  dropoff_lon: number | null;
+  pickup_lat: number | null;
+  pickup_lon: number | null;
+  customer_id: string | null;
+};
+
+type Assignment = {
+  id: string;
+  order_id: string;
+  courier_email: string;
+  status: string;
+  assigned_at: string | null;
+  payment_method: string | null;
+};
+
+type Courier = {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+/* ─── Constantes ─────────────────────────────────────── */
+const SERVICES: Record<string, string> = {
+  supermarket: "Supermarché",
+  meds: "Médicaments",
+  food: "Nourriture",
+  keys: "Clés/Objets",
+  shopping: "Achats",
+  concierge: "Conciergerie",
+  express: "Express",
+  eco: "Éco",
+  it: "Informatique",
+  assist: "Accompagnement",
+  bricolage: "Bricolage",
+  voiturier: "Voiturier",
+  other: "Autre",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  pending: "#eab308",
+  assigned: "#3b82f6",
+  acceptee: "#6366f1",
+  en_route: "#8b5cf6",
+  terminee: "#22c55e",
+  annulee: "#9ca3af",
+  refusee: "#ef4444",
+};
+const STATUS_LABELS: Record<string, string> = {
+  pending: "En attente",
+  assigned: "Assignée",
+  acceptee: "Acceptée",
+  en_route: "En route",
+  terminee: "Terminée",
+  annulee: "Annulée",
+  refusee: "Refusée",
+};
+
+const CHART_COLORS = [
+  "#1B5E9B", "#f97316", "#22c55e", "#8b5cf6",
+  "#eab308", "#ef4444", "#06b6d4", "#ec4899",
+  "#84cc16", "#f59e0b", "#6366f1", "#14b8a6",
+];
+
+function fmtEuro(n: number) {
+  return n.toFixed(2).replace(".", ",") + " €";
+}
+function fmtMonth(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+}
+function nowMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function isoMonth(iso: string) {
+  return iso.slice(0, 7);
+}
+
+/* ─── KPI Card ───────────────────────────────────────── */
+function KpiCard({
+  label,
+  value,
+  sub,
+  color = "blue",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: "blue" | "green" | "orange" | "purple";
+}) {
+  const bg = {
+    blue: "from-blue-600 to-blue-800",
+    green: "from-emerald-500 to-emerald-700",
+    orange: "from-orange-500 to-orange-700",
+    purple: "from-violet-600 to-violet-800",
+  }[color];
+  return (
+    <div className={`bg-gradient-to-br ${bg} rounded-2xl p-5 text-white shadow-lg`}>
+      <p className="text-sm opacity-80 mb-1">{label}</p>
+      <p className="text-3xl font-bold">{value}</p>
+      {sub && <p className="text-xs opacity-70 mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+/* ─── Section wrapper ────────────────────────────────── */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <h2 className="text-lg font-semibold text-gray-800 mb-5">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════
+   PAGE PRINCIPALE
+═══════════════════════════════════════════════════════ */
+export default function AdminPage() {
+  /* ─── Auth ─── */
+  const [email, setEmail] = useState("");
+  const [authed, setAuthed] = useState(false);
+  const [authErr, setAuthErr] = useState("");
+
+  useEffect(() => {
+    if (sessionStorage.getItem("admin_authed") === ADMIN_EMAIL) setAuthed(true);
+  }, []);
+
+  function handleLogin() {
+    if (email.trim().toLowerCase() === ADMIN_EMAIL) {
+      sessionStorage.setItem("admin_authed", ADMIN_EMAIL);
+      setAuthed(true);
+    } else {
+      setAuthErr("Accès refusé.");
+    }
+  }
+
+  /* ─── Data ─── */
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [customersCount, setCustomersCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  /* ─── Filters ─── */
+  const [filterMonth, setFilterMonth] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterCourier, setFilterCourier] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
+
+  /* ─── Fetch data ─── */
+  useEffect(() => {
+    if (!authed) return;
+
+    async function load() {
+      setLoading(true);
+      const [ordRes, assRes, courRes, custRes] = await Promise.all([
+        supabase.from("orders").select("*").order("created_at", { ascending: false }),
+        supabase.from("assignments").select("*").order("assigned_at", { ascending: false }),
+        supabase.from("couriers").select("*"),
+        supabase.from("customers").select("id", { count: "exact", head: true }),
+      ]);
+      if (ordRes.data) setOrders(ordRes.data as Order[]);
+      if (assRes.data) setAssignments(assRes.data as Assignment[]);
+      if (courRes.data) setCouriers(courRes.data as Courier[]);
+      setCustomersCount(custRes.count ?? 0);
+      setLoading(false);
+    }
+
+    load();
+
+    // Temps réel
+    const ch = supabase
+      .channel("admin-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "assignments" }, () => load())
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
+  }, [authed]);
+
+  /* ─── Computed ─── */
+  const currentMonth = nowMonth();
+
+  const completedOrders = useMemo(
+    () => orders.filter((o) => o.status === "terminee"),
+    [orders],
+  );
+
+  const caTotalAll = useMemo(
+    () => completedOrders.reduce((s, o) => s + (o.price_total ?? 0), 0),
+    [completedOrders],
+  );
+
+  const ordersThisMonth = useMemo(
+    () => orders.filter((o) => isoMonth(o.created_at) === currentMonth),
+    [orders, currentMonth],
+  );
+
+  const completedThisMonth = useMemo(
+    () => completedOrders.filter((o) => isoMonth(o.created_at) === currentMonth),
+    [completedOrders, currentMonth],
+  );
+
+  const caThisMonth = useMemo(
+    () => completedThisMonth.reduce((s, o) => s + (o.price_total ?? 0), 0),
+    [completedThisMonth],
+  );
+
+  /* CA par mois (12 derniers mois) */
+  const caByMonth = useMemo(() => {
+    const map: Record<string, number> = {};
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      map[key] = 0;
+    }
+    completedOrders.forEach((o) => {
+      const m = isoMonth(o.created_at);
+      if (m in map) map[m] = (map[m] ?? 0) + (o.price_total ?? 0);
+    });
+    return Object.entries(map).map(([month, ca]) => ({
+      month: fmtMonth(month + "-01"),
+      ca: Math.round(ca * 100) / 100,
+    }));
+  }, [completedOrders]);
+
+  /* CA annuel par année */
+  const caByYear = useMemo(() => {
+    const map: Record<string, number> = {};
+    completedOrders.forEach((o) => {
+      const y = o.created_at.slice(0, 4);
+      map[y] = (map[y] ?? 0) + (o.price_total ?? 0);
+    });
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([year, ca]) => ({ year, ca: Math.round(ca * 100) / 100 }));
+  }, [completedOrders]);
+
+  /* Commandes par service */
+  const byService = useMemo(() => {
+    const map: Record<string, number> = {};
+    orders.forEach((o) => {
+      const svc = SERVICES[o.service_type] ?? o.service_type;
+      map[svc] = (map[svc] ?? 0) + 1;
+    });
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name, count]) => ({ name, count }));
+  }, [orders]);
+
+  /* Répartition statuts */
+  const byStatus = useMemo(() => {
+    const map: Record<string, number> = {};
+    orders.forEach((o) => { map[o.status] = (map[o.status] ?? 0) + 1; });
+    return Object.entries(map).map(([status, value]) => ({
+      name: STATUS_LABELS[status] ?? status,
+      value,
+      color: STATUS_COLORS[status] ?? "#9ca3af",
+    }));
+  }, [orders]);
+
+  /* Paiements coursiers */
+  const courierStats = useMemo(() => {
+    const courierMap: Record<string, {
+      email: string;
+      name: string;
+      totalMissions: number;
+      totalCA: number;
+      monthMissions: number;
+      monthCA: number;
+    }> = {};
+
+    const assignmentOrderMap = Object.fromEntries(
+      assignments.map((a) => [a.order_id, a])
+    );
+
+    orders.forEach((o) => {
+      if (o.status !== "terminee") return;
+      const asgn = assignmentOrderMap[o.id];
+      if (!asgn) return;
+      const email = asgn.courier_email;
+      const courier = couriers.find((c) => c.email === email);
+      const name = courier
+        ? `${courier.first_name ?? ""} ${courier.last_name ?? ""}`.trim() || email
+        : email;
+      const ca = o.price_total ?? 0;
+      const isThisMonth = isoMonth(o.created_at) === currentMonth;
+
+      if (!courierMap[email]) {
+        courierMap[email] = { email, name, totalMissions: 0, totalCA: 0, monthMissions: 0, monthCA: 0 };
+      }
+      courierMap[email].totalMissions++;
+      courierMap[email].totalCA += ca;
+      if (isThisMonth) {
+        courierMap[email].monthMissions++;
+        courierMap[email].monthCA += ca;
+      }
+    });
+
+    return Object.values(courierMap).sort((a, b) => b.totalCA - a.totalCA);
+  }, [orders, assignments, couriers, currentMonth]);
+
+  /* Points heatmap */
+  const heatPoints = useMemo<HeatPoint[]>(() => {
+    const pts: HeatPoint[] = [];
+    orders.forEach((o) => {
+      if (o.dropoff_lat && o.dropoff_lon)
+        pts.push({ lat: o.dropoff_lat, lon: o.dropoff_lon });
+      if (o.pickup_lat && o.pickup_lon)
+        pts.push({ lat: o.pickup_lat, lon: o.pickup_lon });
+    });
+    return pts;
+  }, [orders]);
+
+  /* Tableau commandes filtré */
+  const filteredOrders = useMemo(() => {
+    return orders.filter((o) => {
+      if (filterMonth && isoMonth(o.created_at) !== filterMonth) return false;
+      if (filterStatus && o.status !== filterStatus) return false;
+      if (filterCourier) {
+        const asgn = assignments.find((a) => a.order_id === o.id);
+        if (!asgn || asgn.courier_email !== filterCourier) return false;
+      }
+      if (orderSearch) {
+        const q = orderSearch.toLowerCase();
+        if (
+          !o.pickup_address.toLowerCase().includes(q) &&
+          !o.dropoff_address.toLowerCase().includes(q) &&
+          !(SERVICES[o.service_type] ?? o.service_type).toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    });
+  }, [orders, assignments, filterMonth, filterStatus, filterCourier, orderSearch]);
+
+  /* ─────────────────────────────────────────────────────
+     RENDER : écran de login
+  ──────────────────────────────────────────────────── */
+  if (!authed) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-2">🦉</div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard Admin</h1>
+            <p className="text-sm text-gray-500 mt-1">Il est Chouette</p>
+          </div>
+          <input
+            className="border border-gray-200 rounded-xl p-3 w-full mb-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Email admin"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+          />
+          {authErr && <p className="text-red-500 text-xs mb-3">{authErr}</p>}
+          <button
+            onClick={handleLogin}
+            className="w-full bg-blue-600 text-white rounded-xl py-3 font-semibold hover:bg-blue-700 transition"
+          >
+            Accéder
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─────────────────────────────────────────────────────
+     RENDER : dashboard
+  ──────────────────────────────────────────────────── */
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🦉</span>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Dashboard Admin</h1>
+            <p className="text-xs text-gray-400">Il est Chouette · Temps réel</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/operateur"
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Interface opérateur
+          </Link>
+          <button
+            onClick={() => { sessionStorage.removeItem("admin_authed"); setAuthed(false); }}
+            className="text-sm text-gray-500 hover:text-red-500 transition"
+          >
+            Déconnexion
+          </button>
+        </div>
+      </header>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-64 text-gray-400 text-lg">
+          Chargement des données…
+        </div>
+      ) : (
+        <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+
+          {/* ── KPIs ── */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <KpiCard
+              label="CA Total"
+              value={fmtEuro(caTotalAll)}
+              sub="toutes commandes terminées"
+              color="blue"
+            />
+            <KpiCard
+              label="CA ce mois"
+              value={fmtEuro(caThisMonth)}
+              sub={completedThisMonth.length + " commandes"}
+              color="green"
+            />
+            <KpiCard
+              label="Commandes totales"
+              value={String(orders.length)}
+              sub={ordersThisMonth.length + " ce mois"}
+              color="orange"
+            />
+            <KpiCard
+              label="Clients"
+              value={String(customersCount)}
+              sub="inscrits"
+              color="purple"
+            />
+            <KpiCard
+              label="Coursiers"
+              value={String(couriers.length)}
+              sub="enregistrés"
+              color="blue"
+            />
+            <KpiCard
+              label="Taux complétion"
+              value={
+                orders.length > 0
+                  ? Math.round((completedOrders.length / orders.length) * 100) + "%"
+                  : "—"
+              }
+              sub={completedOrders.length + " terminées"}
+              color="green"
+            />
+          </div>
+
+          {/* ── CA mensuel ── */}
+          <Section title="Chiffre d'affaires — 12 derniers mois">
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={caByMonth} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+                <defs>
+                  <linearGradient id="gradCA" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#1B5E9B" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#1B5E9B" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => v + " €"} />
+                <Tooltip formatter={(v) => fmtEuro(Number(v))} />
+                <Area
+                  type="monotone"
+                  dataKey="ca"
+                  name="CA"
+                  stroke="#1B5E9B"
+                  strokeWidth={2}
+                  fill="url(#gradCA)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Section>
+
+          {/* ── Facturation annuelle + services ── */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <Section title="Facturation annuelle">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={caByYear} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => v + " €"} />
+                  <Tooltip formatter={(v) => fmtEuro(Number(v))} />
+                  <Bar dataKey="ca" name="CA" fill="#1B5E9B" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </Section>
+
+            <Section title="Commandes par service">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={byService}
+                  layout="vertical"
+                  margin={{ top: 5, right: 20, bottom: 5, left: 70 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={65} />
+                  <Tooltip />
+                  <Bar dataKey="count" name="Commandes" radius={[0, 6, 6, 0]}>
+                    {byService.map((_, i) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Section>
+          </div>
+
+          {/* ── Statuts ── */}
+          <Section title="Répartition des statuts">
+            <div className="flex flex-col md:flex-row items-center gap-8">
+              <ResponsiveContainer width={260} height={220}>
+                <PieChart>
+                  <Pie
+                    data={byStatus}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={95}
+                    paddingAngle={3}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {byStatus.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-3">
+                {byStatus.map((s) => (
+                  <div key={s.name} className="flex items-center gap-2 text-sm">
+                    <span
+                      className="w-3 h-3 rounded-full inline-block"
+                      style={{ background: s.color }}
+                    />
+                    <span className="text-gray-700">{s.name}</span>
+                    <span className="font-semibold text-gray-900">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          {/* ── Paiements coursiers ── */}
+          <Section title={`Paiements coursiers — ${new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`}>
+            <p className="text-xs text-gray-400 mb-4">Le coursier reçoit 65% du prix de chaque commande terminée.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
+                    <th className="pb-3 pr-4">Coursier</th>
+                    <th className="pb-3 pr-4 text-right">Missions ce mois</th>
+                    <th className="pb-3 pr-4 text-right">CA brut ce mois</th>
+                    <th className="pb-3 pr-4 text-right font-bold text-emerald-600">À verser ce mois</th>
+                    <th className="pb-3 pr-4 text-right">Missions totales</th>
+                    <th className="pb-3 text-right">CA brut total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {courierStats.map((c) => (
+                    <tr key={c.email} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-3 pr-4">
+                        <p className="font-medium text-gray-900">{c.name}</p>
+                        <p className="text-xs text-gray-400">{c.email}</p>
+                      </td>
+                      <td className="py-3 pr-4 text-right text-gray-700">{c.monthMissions}</td>
+                      <td className="py-3 pr-4 text-right text-gray-700">{fmtEuro(c.monthCA)}</td>
+                      <td className="py-3 pr-4 text-right font-bold text-emerald-600">
+                        {fmtEuro(c.monthCA * 0.65)}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-gray-500">{c.totalMissions}</td>
+                      <td className="py-3 text-right text-gray-500">{fmtEuro(c.totalCA)}</td>
+                    </tr>
+                  ))}
+                  {courierStats.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-gray-400">
+                        Aucune mission terminée ce mois.
+                      </td>
+                    </tr>
+                  )}
+                  {courierStats.length > 0 && (
+                    <tr className="bg-blue-50 font-semibold">
+                      <td className="py-3 pr-4 text-blue-900">Total</td>
+                      <td className="py-3 pr-4 text-right text-blue-900">
+                        {courierStats.reduce((s, c) => s + c.monthMissions, 0)}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-blue-900">
+                        {fmtEuro(courierStats.reduce((s, c) => s + c.monthCA, 0))}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-emerald-700">
+                        {fmtEuro(courierStats.reduce((s, c) => s + c.monthCA * 0.65, 0))}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-blue-900">
+                        {courierStats.reduce((s, c) => s + c.totalMissions, 0)}
+                      </td>
+                      <td className="py-3 text-right text-blue-900">
+                        {fmtEuro(courierStats.reduce((s, c) => s + c.totalCA, 0))}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          {/* ── Heatmap ── */}
+          <Section title="Zones d'activité — Heatmap livraisons">
+            {heatPoints.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <p className="text-4xl mb-3">🗺️</p>
+                <p className="font-medium">Pas encore de coordonnées GPS enregistrées.</p>
+                <p className="text-sm mt-1">La carte se remplira automatiquement avec les nouvelles commandes.</p>
+              </div>
+            ) : (
+              <AdminMap points={heatPoints} />
+            )}
+          </Section>
+
+          {/* ── Tableau commandes ── */}
+          <Section title="Toutes les commandes">
+            {/* Filtres */}
+            <div className="flex flex-wrap gap-3 mb-5">
+              <input
+                type="month"
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+              />
+              <select
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                <option value="">Tous statuts</option>
+                {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+              <select
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                value={filterCourier}
+                onChange={(e) => setFilterCourier(e.target.value)}
+              >
+                <option value="">Tous coursiers</option>
+                {couriers.map((c) => (
+                  <option key={c.email} value={c.email}>
+                    {c.first_name} {c.last_name} ({c.email})
+                  </option>
+                ))}
+              </select>
+              <input
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-40 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="Rechercher adresse, service…"
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+              />
+              {(filterMonth || filterStatus || filterCourier || orderSearch) && (
+                <button
+                  className="text-sm text-gray-400 hover:text-gray-700 px-2"
+                  onClick={() => { setFilterMonth(""); setFilterStatus(""); setFilterCourier(""); setOrderSearch(""); }}
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-400 mb-3">
+              {filteredOrders.length} commande{filteredOrders.length !== 1 ? "s" : ""}
+              {filteredOrders.length !== orders.length && ` sur ${orders.length}`}
+            </p>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
+                    <th className="pb-3 pr-4">Date</th>
+                    <th className="pb-3 pr-4">Service</th>
+                    <th className="pb-3 pr-4">Pickup</th>
+                    <th className="pb-3 pr-4">Dropoff</th>
+                    <th className="pb-3 pr-4">Coursier</th>
+                    <th className="pb-3 pr-4">Statut</th>
+                    <th className="pb-3 text-right">Prix</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.slice(0, 100).map((o) => {
+                    const asgn = assignments.find((a) => a.order_id === o.id);
+                    const courier = asgn
+                      ? couriers.find((c) => c.email === asgn.courier_email)
+                      : null;
+                    const statusConf = STATUS_LABELS[o.status] ?? o.status;
+                    const statusColor = STATUS_COLORS[o.status] ?? "#9ca3af";
+                    return (
+                      <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-3 pr-4 text-gray-500 whitespace-nowrap">
+                          {new Date(o.created_at).toLocaleDateString("fr-FR", {
+                            day: "2-digit", month: "short", year: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-3 pr-4 text-gray-800 font-medium">
+                          {SERVICES[o.service_type] ?? o.service_type}
+                          {o.express && <span className="ml-1 text-red-500 text-xs">⚡</span>}
+                        </td>
+                        <td className="py-3 pr-4 text-gray-600 max-w-40 truncate">{o.pickup_address}</td>
+                        <td className="py-3 pr-4 text-gray-600 max-w-40 truncate">{o.dropoff_address}</td>
+                        <td className="py-3 pr-4 text-gray-600">
+                          {courier
+                            ? `${courier.first_name ?? ""} ${courier.last_name ?? ""}`.trim()
+                            : asgn?.courier_email ?? <span className="text-gray-300">—</span>}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <span
+                            className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                            style={{
+                              background: statusColor + "22",
+                              color: statusColor,
+                            }}
+                          >
+                            {statusConf}
+                          </span>
+                        </td>
+                        <td className="py-3 text-right font-semibold text-gray-900">
+                          {fmtEuro(o.price_total)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-gray-400">
+                        Aucune commande trouvée.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              {filteredOrders.length > 100 && (
+                <p className="text-xs text-center text-gray-400 mt-3">
+                  Affichage des 100 premières commandes sur {filteredOrders.length}.
+                </p>
+              )}
+            </div>
+          </Section>
+
+          <p className="text-center text-xs text-gray-300 pb-6">
+            Il est Chouette · Dashboard Admin · Données en temps réel
+          </p>
+        </main>
+      )}
+    </div>
+  );
+}

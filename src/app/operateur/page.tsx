@@ -976,6 +976,10 @@ export default function OperatorDashboard() {
       status: selectedCourierId ? "assigned" : "pending",
       scheduled_at,
       created_at: nowIso,
+      pickup_lat: lines[0]?.pickupLat ?? null,
+      pickup_lon: lines[0]?.pickupLon ?? null,
+      dropoff_lat: dropoffLat ?? null,
+      dropoff_lon: dropoffLon ?? null,
     };
 
     if (validationCode) {
