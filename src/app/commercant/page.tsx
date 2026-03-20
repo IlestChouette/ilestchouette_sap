@@ -114,6 +114,66 @@ export default function CommercantPage() {
         </div>
       </div>
 
+      {/* Notre histoire */}
+      <div className="max-w-3xl mx-auto px-4 py-12">
+        <div className="text-center mb-10">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Qui sommes-nous ?</h2>
+          <p className="text-gray-600 text-lg leading-relaxed">
+            Il Est Chouette est bien plus qu&apos;un service de livraison. C&apos;est une communauté née de la conviction que <strong>tout le monde mérite d&apos;avoir accès à des services essentiels</strong> — même lorsque la vie est trop occupée ou que se déplacer est difficile.
+          </p>
+          <p className="text-gray-500 mt-4 leading-relaxed">
+            Notre nom s&apos;inspire des hiboux — présents jour et nuit, avec une connaissance profonde de leur territoire. Comme eux, nous sommes là pour nos clients à toute heure, avec une connaissance fine de Nice et de ses commerces. Et <em>chouette</em>, parce que notre service se veut sympa, chaleureux, humain.
+          </p>
+        </div>
+
+        {/* Comment ça marche */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-8 mb-8 shadow-sm">
+          <h2 className="text-xl font-bold text-gray-900 mb-6 text-center">Comment fonctionne le partenariat ?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { step: "1", icon: "📝", title: "Vous vous inscrivez", desc: "Remplissez le formulaire en 3 minutes. Nous validons votre dossier sous 24-48h." },
+              { step: "2", icon: "📲", title: "Les clients commandent", desc: "Via notre app ou notre site, un client passe une commande dans votre commerce." },
+              { step: "3", icon: "🚴", title: "On livre pour vous", desc: "Un de nos coursiers humains récupère la commande et la livre directement chez votre client." },
+            ].map((s) => (
+              <div key={s.step} className="text-center">
+                <div className="w-10 h-10 bg-orange-500 text-white font-bold rounded-full flex items-center justify-center mx-auto mb-3 text-sm">{s.step}</div>
+                <div className="text-3xl mb-2">{s.icon}</div>
+                <h3 className="font-bold text-gray-900 mb-1">{s.title}</h3>
+                <p className="text-sm text-gray-500">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Avantages */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+          {[
+            { icon: "🎯", title: "0% de commission", desc: "Nous ne prélevons aucune commission sur vos ventes. Vous gardez 100% de vos revenus." },
+            { icon: "🚴", title: "Coursiers humains", desc: "Des vrais coursiers niçois, fiables, qui connaissent la ville. Pas des robots, des personnes." },
+            { icon: "📱", title: "Tableau de bord", desc: "Gérez votre menu, vos produits et vos commandes depuis votre espace personnel en ligne." },
+            { icon: "🤝", title: "Partenariat local", desc: "Rejoignez un réseau de commerçants niçois engagés pour la qualité de service et le commerce local." },
+            { icon: "⚡", title: "Livraison rapide", desc: "Nos coursiers s'engagent à livrer dans les 30 à 45 minutes après récupération de la commande." },
+            { icon: "📣", title: "Visibilité gratuite", desc: "Votre commerce est mis en avant dans notre application et recommandé à nos clients." },
+          ].map((a) => (
+            <div key={a.title} className="flex gap-4 bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+              <span className="text-3xl shrink-0">{a.icon}</span>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm mb-1">{a.title}</h3>
+                <p className="text-sm text-gray-500">{a.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Citation */}
+        <div className="bg-orange-500 text-white rounded-2xl p-8 text-center mb-10">
+          <p className="text-xl font-medium italic mb-4">
+            &quot;Notre objectif est de devenir votre allié de confiance. Avec Il Est Chouette, la vie de vos clients devient plus simple, plus légère — et surtout, plus chouette.&quot;
+          </p>
+          <p className="text-orange-100 text-sm">— Fernando Fonseca, fondateur d&apos;Il Est Chouette</p>
+        </div>
+      </div>
+
       {/* Formulaire */}
       <div className="max-w-2xl mx-auto px-4 py-10">
         {/* Steps */}
