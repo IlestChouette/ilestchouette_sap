@@ -58,8 +58,10 @@ type NominatimProps = {
 function NominatimInput({ value, onChange, placeholder, onPlace }: NominatimProps) {
   const [suggestions, setSuggestions] = useState<NominatimSuggestion[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const coordsReadyRef = useRef(false);
 
   function handleChange(v: string) {
+    coordsReadyRef.current = false; // réinitialise si l'opérateur retape
     onChange(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSuggestions([]);
@@ -76,6 +78,25 @@ function NominatimInput({ value, onChange, placeholder, onPlace }: NominatimProp
     }, 500);
   }
 
+  async function handleBlur() {
+    // Délai pour laisser le mouseDown sur une suggestion se déclencher d'abord
+    await new Promise((r) => setTimeout(r, 200));
+    setSuggestions([]);
+    // Si l'opérateur a tapé sans sélectionner, on géocode automatiquement le 1er résultat
+    if (coordsReadyRef.current || !value || value.length < 3) return;
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&countrycodes=fr&limit=1`,
+        { headers: { "Accept-Language": "fr", "User-Agent": "ilestchouette-operateur/1.0" } },
+      );
+      const data: NominatimSuggestion[] = await res.json();
+      if (data[0]) {
+        coordsReadyRef.current = true;
+        onPlace?.(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name);
+      }
+    } catch {}
+  }
+
   return (
     <div className="relative">
       <input
@@ -83,7 +104,7 @@ function NominatimInput({ value, onChange, placeholder, onPlace }: NominatimProp
         placeholder={placeholder}
         value={value}
         onChange={(e) => handleChange(e.target.value)}
-        onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+        onBlur={handleBlur}
         autoComplete="off"
       />
       {suggestions.length > 0 && (
@@ -94,6 +115,7 @@ function NominatimInput({ value, onChange, placeholder, onPlace }: NominatimProp
               className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b last:border-0 truncate"
               onMouseDown={(e) => {
                 e.preventDefault();
+                coordsReadyRef.current = true;
                 onChange(s.display_name);
                 setSuggestions([]);
                 onPlace?.(parseFloat(s.lat), parseFloat(s.lon), s.display_name);
@@ -441,6 +463,20 @@ export default function OperatorDashboard() {
     loadOrders(c.id);
   }
 
+  /* ── Haversine : distance à vol d'oiseau × 1.3 (estimation route) ── */
+  function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) ** 2;
+    const straight = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(straight * 1.3 * 100) / 100; // ×1.3 = approximation route
+  }
+
   /* =================== DISTANCE & PRIX via OSRM (gratuit) =================== */
   async function computeDistanceForLine(
     line: ServiceLine,
@@ -465,23 +501,27 @@ export default function OperatorDashboard() {
 
     if (!line.pickupLat || !line.pickupLon) return;
 
+    let km = 0;
     try {
       const res = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${line.pickupLon},${line.pickupLat};${dLon},${dLat}?overview=false`,
       );
       const data = await res.json();
       const meters: number = data.routes?.[0]?.distance ?? 0;
-      const km = Math.round((meters / 1000) * 100) / 100;
-      const newPrice = priceFor(line.serviceType, km);
-
-      setLines((prev) =>
-        prev.map((l) =>
-          l.id === line.id ? { ...l, distanceKm: km, price: newPrice } : l,
-        ),
-      );
-    } catch (err) {
-      console.error("Erreur OSRM:", err);
+      km = meters > 0
+        ? Math.round((meters / 1000) * 100) / 100
+        : haversineKm(line.pickupLat, line.pickupLon, dLat, dLon);
+    } catch {
+      // OSRM indisponible → fallback Haversine
+      km = haversineKm(line.pickupLat, line.pickupLon, dLat, dLon);
     }
+
+    const newPrice = priceFor(line.serviceType, km);
+    setLines((prev) =>
+      prev.map((l) =>
+        l.id === line.id ? { ...l, distanceKm: km, price: newPrice } : l,
+      ),
+    );
   }
 
   /* recalcul des distances si le dropoff change */
