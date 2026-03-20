@@ -187,7 +187,7 @@ function priceFor(serviceType: string, km: number, hours?: number) {
     return Math.round(s.base * effectiveHours * 100) / 100;
   }
 
-  const extra = Math.max(0, km - 1) * 1; // à partir du 2e km : +1€/km
+  const extra = km * 1; // 1€/km dès le 1er km
   return Math.round((s.base + extra) * 100) / 100;
 }
 
@@ -859,8 +859,7 @@ export default function OperatorDashboard() {
 
     let distancePrice = 0;
     if (hasKm) {
-      const payableKm = Math.max(0, totalKm - 1);
-      distancePrice = payableKm * 1; // 1€/km
+      distancePrice = totalKm * 1; // 1€/km dès le 1er km
     }
 
     const expressExtra = express ? 12 : 0;

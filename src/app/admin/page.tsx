@@ -918,7 +918,8 @@ export default function AdminPage() {
                     <th className="pb-3 pr-4">Pickup</th>
                     <th className="pb-3 pr-4">Dropoff</th>
                     <th className="pb-3 pr-4">Statut</th>
-                    <th className="pb-3 text-right">Montant</th>
+                    <th className="pb-3 pr-4 text-right">Montant</th>
+                    <th className="pb-3 text-center">Facture</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -955,8 +956,18 @@ export default function AdminPage() {
                               {STATUS_LABELS[o.status] ?? o.status}
                             </span>
                           </td>
-                          <td className="py-3 text-right font-bold text-gray-900">
+                          <td className="py-3 pr-4 text-right font-bold text-gray-900">
                             {fmtEuro(o.price_total)}
+                          </td>
+                          <td className="py-3 text-center">
+                            <a
+                              href={`/operateur/facture/${o.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-3 py-1.5 font-medium transition"
+                            >
+                              🧾 Voir
+                            </a>
                           </td>
                         </tr>
                       );
