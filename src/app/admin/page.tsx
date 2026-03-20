@@ -197,6 +197,7 @@ export default function AdminPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [merchants, setMerchants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   /* ─── Client modal ─── */
@@ -214,16 +215,18 @@ export default function AdminPage() {
 
     async function load() {
       setLoading(true);
-      const [ordRes, assRes, courRes, custRes] = await Promise.all([
+      const [ordRes, assRes, courRes, custRes, merRes] = await Promise.all([
         supabase.from("orders").select("*").order("created_at", { ascending: false }),
         supabase.from("assignments").select("*").order("assigned_at", { ascending: false }),
         supabase.from("couriers").select("*"),
         supabase.from("customers").select("*").order("created_at", { ascending: false }),
+        supabase.from("merchants").select("*").order("created_at", { ascending: false }),
       ]);
       if (ordRes.data) setOrders(ordRes.data as Order[]);
       if (assRes.data) setAssignments(assRes.data as Assignment[]);
       if (courRes.data) setCouriers(courRes.data as Courier[]);
       if (custRes.data) setCustomers(custRes.data as Customer[]);
+      if (merRes.data) setMerchants(merRes.data);
       setLoading(false);
     }
 
@@ -989,6 +992,59 @@ export default function AdminPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </Section>
+
+          {/* ── Commerçants ── */}
+          <Section title={`Commerçants (${merchants.length})`}>
+            <div className="space-y-3">
+              {merchants.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">Aucune demande pour l&apos;instant.</p>
+              )}
+              {merchants.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-4 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900">{m.name}</span>
+                      <span className="text-xs text-gray-400">{m.category}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        m.status === "active" ? "bg-green-100 text-green-700" :
+                        m.status === "rejected" ? "bg-red-100 text-red-500" :
+                        "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {m.status === "active" ? "✓ Actif" : m.status === "rejected" ? "✕ Refusé" : "⏳ En attente"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">{m.address}</p>
+                    <p className="text-xs text-gray-400">{m.email} {m.phone ? `· ${m.phone}` : ""} {m.siret ? `· SIRET: ${m.siret}` : ""}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {m.phone && (
+                      <a href={`https://wa.me/${m.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour ${m.name}, votre inscription sur Il est chouette a été validée ! Voici vos accès : ilestchouette.fr/commercant/dashboard`)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="text-xs bg-green-500 hover:bg-green-600 text-white font-bold px-3 py-1.5 rounded-lg transition">
+                        📱 WA
+                      </a>
+                    )}
+                    {m.status !== "active" && (
+                      <button onClick={async () => {
+                        await supabase.from("merchants").update({ status: "active" }).eq("id", m.id);
+                        setMerchants((prev) => prev.map((x) => x.id === m.id ? { ...x, status: "active" } : x));
+                      }} className="text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold px-3 py-1.5 rounded-lg transition">
+                        Valider
+                      </button>
+                    )}
+                    {m.status !== "rejected" && (
+                      <button onClick={async () => {
+                        await supabase.from("merchants").update({ status: "rejected" }).eq("id", m.id);
+                        setMerchants((prev) => prev.map((x) => x.id === m.id ? { ...x, status: "rejected" } : x));
+                      }} className="text-xs border border-red-200 text-red-500 hover:bg-red-50 font-semibold px-3 py-1.5 rounded-lg transition">
+                        Refuser
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </Section>
 
