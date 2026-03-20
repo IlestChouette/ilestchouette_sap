@@ -475,6 +475,14 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <a
+            href="https://analytics.google.com/analytics/web/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg font-medium transition"
+          >
+            📊 Google Analytics
+          </a>
           <Link
             href="/operateur"
             className="text-sm text-blue-600 hover:underline"
