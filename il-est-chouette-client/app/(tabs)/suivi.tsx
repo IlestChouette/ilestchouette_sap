@@ -16,7 +16,7 @@ function getStatusInfo(status: OrderStatus | string | null | undefined, t: (k: s
     case 'acceptee':   return { label: t('tracking.status_acceptee'), emoji: '🚴', color: ORANGE,    step: 3 };
     case 'terminee':   return { label: t('tracking.status_terminee'), emoji: '✅', color: GREEN,     step: 4 };
     case 'annulee':    return { label: t('tracking.status_annulee'),  emoji: '❌', color: RED,       step: 0 };
-    default:           return { label: status ?? '—',                emoji: '⏳', color: GRAY_500,  step: 1 };
+    default:           return { label: status ?? '—',                 emoji: '⏳', color: GRAY_500,  step: 1 };
   }
 }
 
@@ -25,7 +25,7 @@ const STATUS_STEPS: OrderStatus[] = ['pending', 'assigned', 'acceptee', 'termine
 export default function SuiviScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const [order, setOrder] = useState<Order | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState('');
 
@@ -38,13 +38,21 @@ export default function SuiviScreen() {
       setUserEmail(email);
       if (!email) { setLoading(false); return; }
 
-      await loadOrder(email);
+      await loadOrders(email);
 
       channel = supabase
         .channel('client-order-updates')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
           const updated = payload.new as Order;
-          if (updated.client_email === email) setOrder(updated);
+          if (updated.client_email === email) {
+            setOrders(prev => {
+              // Remove if now terminated/cancelled, otherwise update
+              if (updated.status === 'terminee' || updated.status === 'annulee') {
+                return prev.filter(o => o.id !== updated.id);
+              }
+              return prev.map(o => o.id === updated.id ? updated : o);
+            });
+          }
         })
         .subscribe();
     }
@@ -52,17 +60,15 @@ export default function SuiviScreen() {
     return () => { channel?.unsubscribe(); };
   }, []);
 
-  async function loadOrder(email: string) {
+  async function loadOrders(email: string) {
     setLoading(true);
     const { data } = await supabase
       .from('orders')
       .select('*')
       .eq('client_email', email)
       .not('status', 'in', '("terminee","annulee")')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    setOrder(data as Order | null);
+      .order('created_at', { ascending: false });
+    setOrders((data ?? []) as Order[]);
     setLoading(false);
   }
 
@@ -74,7 +80,7 @@ export default function SuiviScreen() {
     );
   }
 
-  if (!order) {
+  if (orders.length === 0) {
     return (
       <View style={styles.empty}>
         <Text style={styles.emptyEmoji}>🚴</Text>
@@ -86,67 +92,86 @@ export default function SuiviScreen() {
     );
   }
 
-  const service = getService(order.service_type);
-  const { label, emoji, color, step } = getStatusInfo(order.status, t);
-  const isCancelled = order.status === 'annulee';
-  const isDone = order.status === 'terminee';
-
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: isCancelled ? RED : isDone ? GREEN : ORANGE }]}>
-        <Text style={styles.headerEmoji}>{emoji}</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerEmoji}>🚴</Text>
         <View>
-          <Text style={styles.headerLabel}>{label}</Text>
+          <Text style={styles.headerLabel}>
+            {orders.length === 1 ? 'En cours' : `${orders.length} commandes en cours`}
+          </Text>
           <Text style={styles.headerTitle}>{t('tracking.title')}</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Barre de progression */}
-        {!isCancelled && (
-          <View style={styles.progressBar}>
-            {STATUS_STEPS.map((s, i) => {
-              const info = getStatusInfo(s, t);
-              const done2 = step > i + 1;
-              const current = step === i + 1;
-              return (
-                <View key={s} style={styles.progressStep}>
-                  <View style={[styles.progressDot, done2 && styles.progressDotDone, current && styles.progressDotCurrent]}>
-                    <Text style={[styles.progressDotText, (done2 || current) && { color: '#fff' }]}>{info.emoji}</Text>
-                  </View>
-                  {i < STATUS_STEPS.length - 1 && (
-                    <View style={[styles.progressLine, done2 && styles.progressLineDone]} />
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
+        {orders.map((order, idx) => (
+          <OrderCard key={order.id} order={order} index={idx} total={orders.length} t={t} />
+        ))}
 
-        {/* Détails commande */}
-        <View style={styles.card}>
-          <DetailRow icon="🔧" label={t('tracking.service')} value={`${service?.emoji ?? ''} ${service ? t(service.labelKey) : order.service_type}`} />
-          {order.pickup_address && <DetailRow icon="📍" label={t('tracking.pickup')} value={order.pickup_address} />}
-          <DetailRow icon="🏁" label={t('tracking.dropoff')} value={order.dropoff_address} />
-          {order.scheduled_at && (
-            <DetailRow icon="📅" label={t('tracking.scheduled')} value={new Date(order.scheduled_at).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })} />
-          )}
-          <View style={styles.divider} />
-          <DetailRow icon="💶" label={t('tracking.price')} value={`${order.price_total.toFixed(2)} €`} bold />
-          {order.validation_code && (
-            <View style={styles.codeBox}>
-              <Text style={styles.codeLabel}>{t('tracking.validation_code')}</Text>
-              <Text style={styles.codeValue}>{order.validation_code}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Bouton appel */}
         <Pressable style={styles.callBtn} onPress={() => Linking.openURL('tel:0695427312')}>
           <Text style={styles.callBtnText}>📞 {t('tracking.call_us')}</Text>
         </Pressable>
       </ScrollView>
+    </View>
+  );
+}
+
+function OrderCard({ order, index, total, t }: { order: Order; index: number; total: number; t: (k: string) => string }) {
+  const service = getService(order.service_type);
+  const { label, emoji, color, step } = getStatusInfo(order.status, t);
+  const isCancelled = order.status === 'annulee';
+
+  return (
+    <View style={styles.card}>
+      {/* Card header with status */}
+      <View style={[styles.cardHeader, { backgroundColor: isCancelled ? RED : color }]}>
+        <Text style={styles.cardHeaderEmoji}>{emoji}</Text>
+        <View style={{ flex: 1 }}>
+          {total > 1 && <Text style={styles.cardHeaderIndex}>Commande {index + 1}</Text>}
+          <Text style={styles.cardHeaderLabel}>{label}</Text>
+        </View>
+      </View>
+
+      {/* Progress bar */}
+      {!isCancelled && (
+        <View style={styles.progressBar}>
+          {STATUS_STEPS.map((s, i) => {
+            const info = getStatusInfo(s, t);
+            const done2 = step > i + 1;
+            const current = step === i + 1;
+            return (
+              <View key={s} style={styles.progressStep}>
+                <View style={[styles.progressDot, done2 && styles.progressDotDone, current && styles.progressDotCurrent]}>
+                  <Text style={[styles.progressDotText, (done2 || current) && { color: '#fff' }]}>{info.emoji}</Text>
+                </View>
+                {i < STATUS_STEPS.length - 1 && (
+                  <View style={[styles.progressLine, done2 && styles.progressLineDone]} />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Details */}
+      <View style={styles.cardBody}>
+        <DetailRow icon="🔧" label={t('tracking.service')} value={`${service?.emoji ?? ''} ${service ? t(service.labelKey) : order.service_type}`} />
+        {order.pickup_address && <DetailRow icon="📍" label={t('tracking.pickup')} value={order.pickup_address} />}
+        <DetailRow icon="🏁" label={t('tracking.dropoff')} value={order.dropoff_address} />
+        {order.scheduled_at && (
+          <DetailRow icon="📅" label={t('tracking.scheduled')} value={new Date(order.scheduled_at).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' })} />
+        )}
+        <View style={styles.divider} />
+        <DetailRow icon="💶" label={t('tracking.price')} value={`${order.price_total.toFixed(2)} €`} bold />
+        {order.validation_code && (
+          <View style={styles.codeBox}>
+            <Text style={styles.codeLabel}>{t('tracking.validation_code')}</Text>
+            <Text style={styles.codeValue}>{order.validation_code}</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -170,20 +195,39 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, color: GRAY_500, textAlign: 'center' },
   orderBtn: { backgroundColor: ORANGE, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28 },
   orderBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  header: { paddingTop: 60, paddingBottom: 24, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', gap: 16 },
+
+  header: {
+    paddingTop: 60, paddingBottom: 24, paddingHorizontal: 24,
+    flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: ORANGE,
+  },
   headerEmoji: { fontSize: 40 },
   headerLabel: { fontSize: 15, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
   headerTitle: { fontSize: 22, color: '#fff', fontWeight: '800' },
+
   scroll: { padding: 16, gap: 16, paddingBottom: 40 },
-  progressBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+
+  card: {
+    backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 18, paddingVertical: 14,
+  },
+  cardHeaderEmoji: { fontSize: 28 },
+  cardHeaderIndex: { fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  cardHeaderLabel: { fontSize: 15, color: '#fff', fontWeight: '700' },
+
+  progressBar: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   progressStep: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  progressDot: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F3F4F6', borderWidth: 2, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
+  progressDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6', borderWidth: 2, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
   progressDotDone: { backgroundColor: GREEN, borderColor: GREEN },
   progressDotCurrent: { backgroundColor: ORANGE, borderColor: ORANGE },
-  progressDotText: { fontSize: 16 },
-  progressLine: { flex: 1, height: 2, backgroundColor: '#E5E7EB', marginHorizontal: 4 },
+  progressDotText: { fontSize: 15 },
+  progressLine: { flex: 1, height: 2, backgroundColor: '#E5E7EB', marginHorizontal: 3 },
   progressLineDone: { backgroundColor: GREEN },
-  card: { backgroundColor: '#fff', borderRadius: 20, padding: 20, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+
+  cardBody: { padding: 18, gap: 12 },
   divider: { height: 1, backgroundColor: '#F3F4F6' },
   detailRow: { flexDirection: 'row', gap: 12 },
   detailIcon: { fontSize: 20, marginTop: 2 },
@@ -192,6 +236,7 @@ const styles = StyleSheet.create({
   codeBox: { backgroundColor: ORANGE_LIGHT, borderWidth: 1.5, borderColor: ORANGE_BORDER, borderRadius: 12, padding: 14, alignItems: 'center', gap: 6 },
   codeLabel: { fontSize: 12, color: '#92400E', fontWeight: '600' },
   codeValue: { fontSize: 32, fontWeight: '900', color: ORANGE, letterSpacing: 6 },
+
   callBtn: { backgroundColor: '#fff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   callBtnText: { fontSize: 15, fontWeight: '700', color: GRAY_700 },
 });
