@@ -5,8 +5,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/coursier", "/mentions-legales"],
-        disallow: ["/admin", "/operateur", "/api/"],
+        allow: ["/", "/coursier", "/commercant", "/mentions-legales"],
+        disallow: ["/admin", "/operateur", "/commercant/dashboard", "/api/"],
       },
     ],
     sitemap: "https://www.ilestchouette.fr/sitemap.xml",

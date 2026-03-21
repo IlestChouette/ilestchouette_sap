@@ -45,6 +45,7 @@ export default function ProfilScreen() {
 
   const [loading, setLoading] = useState(true);
   const [lang, setLang] = useState(i18n.language ?? 'fr');
+  const [stats, setStats] = useState({ total: 0, done: 0, spent: 0 });
 
   useEffect(() => { loadData(); }, []);
 
@@ -53,10 +54,16 @@ export default function ProfilScreen() {
     const userId = sessionData.session?.user?.id;
     if (!userId) { setLoading(false); return; }
 
-    const [{ data: prof }, { data: addrs }] = await Promise.all([
+    const email = sessionData.session?.user?.email ?? '';
+    const [{ data: prof }, { data: addrs }, { data: orders }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('saved_addresses').select('*').eq('user_id', userId).order('created_at'),
+      email ? supabase.from('orders').select('price_total, status').eq('client_email', email) : Promise.resolve({ data: [] }),
     ]);
+    if (orders) {
+      const done = orders.filter((o: any) => o.status === 'terminee');
+      setStats({ total: orders.length, done: done.length, spent: done.reduce((s: number, o: any) => s + o.price_total, 0) });
+    }
 
     if (prof) {
       setProfile(prof as Profile);
@@ -131,8 +138,24 @@ export default function ProfilScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t('profile.title')}</Text>
-        {profile?.email && <Text style={styles.headerSub}>{profile.email}</Text>}
+        <View style={styles.headerTop}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {(profile?.full_name ?? profile?.email ?? '?')[0].toUpperCase()}
+            </Text>
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>{profile?.full_name || t('profile.title')}</Text>
+            {profile?.email && <Text style={styles.headerSub}>{profile.email}</Text>}
+          </View>
+        </View>
+        {stats.total > 0 && (
+          <View style={styles.statsRow}>
+            <StatPill emoji="📦" value={`${stats.total}`} label="commandes" />
+            <StatPill emoji="✅" value={`${stats.done}`} label="livrées" />
+            <StatPill emoji="💶" value={`${stats.spent.toFixed(0)} €`} label="dépensés" />
+          </View>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -236,11 +259,29 @@ export default function ProfilScreen() {
   );
 }
 
+function StatPill({ emoji, value, label }: { emoji: string; value: string; label: string }) {
+  return (
+    <View style={styles.statPill}>
+      <Text style={styles.statEmoji}>{emoji}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: BG },
-  header: { backgroundColor: ORANGE, paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: '#fff' },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+  header: { backgroundColor: ORANGE, paddingTop: 56, paddingBottom: 20, paddingHorizontal: 20 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 4 },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 24, fontWeight: '800', color: '#fff' },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  statPill: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, alignItems: 'center', flex: 1 },
+  statEmoji: { fontSize: 15 },
+  statValue: { fontSize: 15, fontWeight: '800', color: '#fff', marginTop: 2 },
+  statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
   scroll: { padding: 16, gap: 16, paddingBottom: 40 },
   section: { backgroundColor: '#fff', borderRadius: 20, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2, gap: 8 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
