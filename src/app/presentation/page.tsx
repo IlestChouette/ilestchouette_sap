@@ -41,7 +41,8 @@ export default async function PresentationPage() {
         <div style={{ maxWidth: 800, margin: "0 auto" }}>
           <div style={{ fontSize: 64, marginBottom: 16 }}>🦉</div>
           <h1 style={{ fontSize: 52, fontWeight: 900, margin: "0 0 8px", letterSpacing: -1 }}>Il est chouette</h1>
-          <p style={{ fontSize: 22, opacity: 0.9, margin: "0 0 40px" }}>Le service de livraison humain à Nice</p>
+          <p style={{ fontSize: 22, opacity: 0.9, margin: "0 0 4px" }}>Assistant personnel à la demande</p>
+          <p style={{ fontSize: 14, opacity: 0.7, margin: "0 0 40px" }}>Nice, France · SASU · SIREN 942 069 949</p>
           <div style={{ display: "flex", gap: 40, flexWrap: "wrap" }}>
             <CoverStat value={`${stats.orders}`} label="Commandes passées" />
             <CoverStat value={`${stats.merchants}`} label="Commerçants partenaires" />
@@ -410,12 +411,13 @@ export default async function PresentationPage() {
           <div style={{ background: "#fff", border: "1px solid #FED7AA", borderRadius: 16, padding: 24, display: "flex", gap: 20, alignItems: "center" }}>
             <div style={{ width: 70, height: 70, borderRadius: 35, background: "#F97316", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, flexShrink: 0 }}>F</div>
             <div>
-              <div style={{ fontSize: 20, fontWeight: 800 }}>Fernando Fonseca</div>
-              <div style={{ color: "#F97316", fontWeight: 600, marginBottom: 6 }}>Fondateur & CEO</div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>Fernando Francisco Fonseca Pinzón</div>
+              <div style={{ color: "#F97316", fontWeight: 600, marginBottom: 6 }}>Président & Directeur — Fondateur</div>
               <p style={{ margin: 0, fontSize: 13, color: "#6B7280", lineHeight: 1.6 }}>
                 Entrepreneur passionné basé à Nice. Fondateur et opérateur principal de Il est chouette. Gère la stratégie, les opérations, le développement commercial et la validation des partenaires.
               </p>
-              <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+              <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Tag>📞 06 95 42 73 12</Tag>
                 <Tag>📧 allo@ilestchouette.fr</Tag>
                 <Tag>🌐 ilestchouette.fr</Tag>
               </div>
@@ -432,8 +434,11 @@ export default async function PresentationPage() {
             {[
               { icon: "🌐", label: "Site web", value: "ilestchouette.fr" },
               { icon: "📧", label: "Email", value: "allo@ilestchouette.fr" },
+              { icon: "📞", label: "Téléphone", value: "06 95 42 73 12" },
+              { icon: "🏛️", label: "Forme juridique", value: "SASU — Capital 5 000 €" },
+              { icon: "🔢", label: "SIREN", value: "942 069 949 · RCS Nice" },
+              { icon: "📍", label: "Siège social", value: "143 Promenade des Anglais, 06200 Nice" },
               { icon: "📱", label: "App client", value: "App Store / Google Play (bientôt)" },
-              { icon: "🗄️", label: "Backend", value: "Supabase (projet: smvoupxtiilnhecgcxxh)" },
               { icon: "🚀", label: "Hébergement web", value: "Vercel — déploiement auto sur push" },
               { icon: "💻", label: "Code source", value: "GitHub — IlestChouette/ilestchouette_sap" },
             ].map(c => (
@@ -451,7 +456,8 @@ export default async function PresentationPage() {
         {/* Footer */}
         <div style={{ textAlign: "center", padding: "40px 0 20px", color: "#9CA3AF", fontSize: 12 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🦉</div>
-          <strong style={{ color: "#F97316" }}>Il est chouette</strong> — Nice, France<br />
+          <strong style={{ color: "#F97316" }}>Il est chouette</strong> — SASU au capital de 5 000 € — SIREN 942 069 949 — RCS Nice<br />
+          143 Promenade des Anglais, 06200 Nice, France<br />
           Document généré automatiquement · Mis à jour le {updatedAt} · Données en temps réel
         </div>
 
