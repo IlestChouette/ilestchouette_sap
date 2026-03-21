@@ -20,9 +20,9 @@ import { ORANGE, ORANGE_LIGHT, ORANGE_DARK, GRAY_500, BG } from '@/constants/the
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
 
-type OrderAction = {
-  type: 'create_order';
+type SingleOrder = {
   service_id: string;
+  merchant_id?: string | null;
   pickup_address?: string;
   dropoff_address: string;
   notes?: string;
@@ -32,6 +32,11 @@ type OrderAction = {
   is_asap: boolean;
   scheduled_at?: string | null;
   payment_method: 'online_card' | 'on_site_cash' | 'on_site_card';
+};
+
+type OrderAction = {
+  type: 'create_orders';
+  orders: SingleOrder[];
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -220,65 +225,73 @@ export default function CommanderScreen() {
 
   async function handleConfirmOrder() {
     if (!pendingAction) return;
-    if (pendingAction.payment_method === 'online_card') {
+    const hasOnlinePayment = pendingAction.orders.some(o => o.payment_method === 'online_card');
+    if (hasOnlinePayment) {
       await handleStripePayment();
     } else {
-      await placeOrder(null);
+      await placeOrders(null);
     }
   }
 
   async function handleStripePayment() {
     setPlacing(true);
     try {
-      const amountCents = Math.round(pendingAction!.price_total * 100);
+      const totalCents = Math.round(
+        pendingAction!.orders.reduce((sum, o) => sum + o.price_total, 0) * 100
+      );
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-        body: { amount: amountCents, currency: 'eur' },
+        body: { amount: totalCents, currency: 'eur' },
       });
       if (error || !data?.clientSecret) {
         Alert.alert('Erreur', 'Paiement impossible, réessayez');
         setPlacing(false);
         return;
       }
+      const grandTotal = (totalCents / 100).toFixed(2);
       const { error: initErr } = await initPaymentSheet({
         paymentIntentClientSecret: data.clientSecret,
         merchantDisplayName: 'Il est chouette',
         style: 'alwaysLight',
-        primaryButtonLabel: `Payer ${pendingAction!.price_total.toFixed(2)} €`,
+        primaryButtonLabel: `Payer ${grandTotal} €`,
       });
       if (initErr) { Alert.alert('Erreur', initErr.message); setPlacing(false); return; }
       const { error: payErr } = await presentPaymentSheet();
       if (payErr) { setPlacing(false); return; }
-      await placeOrder(data.paymentIntentId);
+      await placeOrders(data.paymentIntentId);
     } catch {
       Alert.alert('Erreur', 'Paiement impossible, réessayez');
       setPlacing(false);
     }
   }
 
-  async function placeOrder(stripeIntentId: string | null) {
+  async function placeOrders(stripeIntentId: string | null) {
     setPlacing(true);
-    const a = pendingAction!;
-    const { error } = await supabase.from('orders').insert([{
+    const orders = pendingAction!.orders;
+    const rows = orders.map(o => ({
       client_email: userEmail || null,
-      service_type: a.service_id,
-      pickup_address: a.pickup_address ?? null,
-      dropoff_address: a.dropoff_address,
-      notes: a.notes ?? null,
-      price_total: a.price_total,
+      service_type: o.service_id,
+      pickup_address: o.pickup_address ?? null,
+      dropoff_address: o.dropoff_address,
+      notes: o.notes ?? null,
+      price_total: o.price_total,
       status: 'pending',
-      scheduled_at: a.scheduled_at ?? null,
-      payment_method: a.payment_method,
+      scheduled_at: o.scheduled_at ?? null,
+      payment_method: o.payment_method,
       payment_status: stripeIntentId ? 'paid' : 'pending',
       stripe_payment_intent_id: stripeIntentId,
-    }]);
+    }));
+
+    const { error } = await supabase.from('orders').insert(rows);
     if (error) {
       Alert.alert('Erreur', 'Commande non créée, réessayez');
       setPlacing(false);
       return;
     }
 
-    // Send email notification to admin
-    supabase.functions.invoke('notify-new-order', { body: { ...a, client_email: userEmail } });
+    // Notify admin for each order
+    orders.forEach(o => {
+      supabase.functions.invoke('notify-new-order', { body: { ...o, service_type: o.service_id, client_email: userEmail } });
+    });
 
     setDone(true);
     setPlacing(false);
@@ -379,35 +392,57 @@ export default function CommanderScreen() {
               </View>
             )}
 
-            {pendingAction && !loading && (
-              <View style={styles.confirmCard}>
-                <Text style={styles.confirmHeader}>Récapitulatif de votre commande</Text>
-                <View style={styles.confirmRows}>
-                  <ConfirmRow label="Service" value={SERVICE_LABELS[pendingAction.service_id] ?? pendingAction.service_id} />
-                  {pendingAction.pickup_address ? <ConfirmRow label="Depuis" value={pendingAction.pickup_address} /> : null}
-                  <ConfirmRow label="Livraison" value={pendingAction.dropoff_address} />
-                  {pendingAction.notes ? <ConfirmRow label="Détails" value={pendingAction.notes} /> : null}
-                  <ConfirmRow label="Horaire" value={pendingAction.is_asap ? '⚡ ASAP' : pendingAction.scheduled_at ?? 'Planifié'} />
-                  {pendingAction.price_items ? <ConfirmRow label="Articles" value={`${pendingAction.price_items.toFixed(2)} €`} /> : null}
+            {pendingAction && !loading && (() => {
+              const grandTotal = pendingAction.orders.reduce((s, o) => s + o.price_total, 0);
+              const hasOnline = pendingAction.orders.some(o => o.payment_method === 'online_card');
+              return (
+                <View style={styles.confirmCard}>
+                  <Text style={styles.confirmHeader}>
+                    {pendingAction.orders.length > 1
+                      ? `Récapitulatif — ${pendingAction.orders.length} services`
+                      : 'Récapitulatif de votre commande'}
+                  </Text>
+                  {pendingAction.orders.map((o, i) => (
+                    <View key={i} style={styles.confirmServiceBlock}>
+                      {pendingAction.orders.length > 1 && (
+                        <Text style={styles.confirmServiceTitle}>
+                          {`${i + 1}. ${SERVICE_LABELS[o.service_id] ?? o.service_id}`}
+                        </Text>
+                      )}
+                      <View style={styles.confirmRows}>
+                        {pendingAction.orders.length === 1 && (
+                          <ConfirmRow label="Service" value={SERVICE_LABELS[o.service_id] ?? o.service_id} />
+                        )}
+                        {o.pickup_address ? <ConfirmRow label="Depuis" value={o.pickup_address} /> : null}
+                        <ConfirmRow label="Livraison" value={o.dropoff_address} />
+                        {o.notes ? <ConfirmRow label="Détails" value={o.notes} /> : null}
+                        <ConfirmRow label="Horaire" value={o.is_asap ? '⚡ ASAP' : o.scheduled_at ?? 'Planifié'} />
+                        {o.price_items ? <ConfirmRow label="Articles" value={`${o.price_items.toFixed(2)} €`} /> : null}
+                        <ConfirmRow label="Livraison" value={`${(o.price_total - (o.price_items ?? 0)).toFixed(2)} €`} />
+                      </View>
+                      <View style={styles.confirmSubtotalRow}>
+                        <Text style={styles.confirmRowLabel}>Sous-total</Text>
+                        <Text style={styles.confirmSubtotalValue}>{o.price_total.toFixed(2)} €</Text>
+                      </View>
+                    </View>
+                  ))}
+                  <View style={styles.confirmTotalRow}>
+                    <Text style={styles.confirmTotalLabel}>Total</Text>
+                    <Text style={styles.confirmTotalValue}>{grandTotal.toFixed(2)} €</Text>
+                  </View>
+                  <Pressable style={styles.confirmBtn} onPress={handleConfirmOrder} disabled={placing}>
+                    {placing
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={styles.confirmBtnText}>
+                          {hasOnline ? `💳 Payer ${grandTotal.toFixed(2)} €` : '✅ Confirmer la commande'}
+                        </Text>}
+                  </Pressable>
+                  <Pressable onPress={() => setPendingAction(null)} style={styles.cancelBtn}>
+                    <Text style={styles.cancelBtnText}>Modifier</Text>
+                  </Pressable>
                 </View>
-                <View style={styles.confirmTotalRow}>
-                  <Text style={styles.confirmTotalLabel}>Total livraison</Text>
-                  <Text style={styles.confirmTotalValue}>{pendingAction.price_total.toFixed(2)} €</Text>
-                </View>
-                <Pressable style={styles.confirmBtn} onPress={handleConfirmOrder} disabled={placing}>
-                  {placing
-                    ? <ActivityIndicator color="#fff" />
-                    : <Text style={styles.confirmBtnText}>
-                        {pendingAction.payment_method === 'online_card'
-                          ? `💳 Payer ${pendingAction.price_total.toFixed(2)} €`
-                          : '✅ Confirmer la commande'}
-                      </Text>}
-                </Pressable>
-                <Pressable onPress={() => setPendingAction(null)} style={styles.cancelBtn}>
-                  <Text style={styles.cancelBtnText}>Modifier</Text>
-                </Pressable>
-              </View>
-            )}
+              );
+            })()}
           </>
         }
       />
@@ -498,9 +533,19 @@ const styles = StyleSheet.create({
   confirmRowItem: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   confirmRowLabel: { fontSize: 13, color: GRAY_500, flex: 1 },
   confirmRowValue: { fontSize: 13, color: '#111827', fontWeight: '500', flex: 2, textAlign: 'right' },
+  confirmServiceBlock: {
+    borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 10, marginTop: 6,
+  },
+  confirmServiceTitle: {
+    fontSize: 13, fontWeight: '700', color: ORANGE, marginBottom: 6,
+  },
+  confirmSubtotalRow: {
+    flexDirection: 'row', justifyContent: 'space-between', paddingTop: 4,
+  },
+  confirmSubtotalValue: { fontSize: 13, fontWeight: '600', color: '#374151' },
   confirmTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 10, marginTop: 4,
+    borderTopWidth: 2, borderTopColor: ORANGE, paddingTop: 10, marginTop: 8,
   },
   confirmTotalLabel: { fontSize: 14, fontWeight: '700', color: '#111827' },
   confirmTotalValue: { fontSize: 22, fontWeight: '800', color: ORANGE },
