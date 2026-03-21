@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Metadata } from "next";
 import PrintButton from "./PrintButton";
+import LogoutButton from "./LogoutButton";
 
 export const metadata: Metadata = {
   title: "Présentation — Il est chouette",
@@ -35,6 +36,7 @@ export default async function PresentationPage() {
     <div style={{ fontFamily: "'Segoe UI', Arial, sans-serif", background: "#FFFBF7", minHeight: "100vh", color: "#1F2937" }}>
 
       <PrintButton />
+      <LogoutButton />
 
       {/* Cover */}
       <div style={{ background: "linear-gradient(135deg, #F97316 0%, #EA580C 100%)", color: "#fff", padding: "80px 60px 60px", pageBreakAfter: "always" }}>
