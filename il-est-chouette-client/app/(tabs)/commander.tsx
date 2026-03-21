@@ -286,10 +286,26 @@ export default function CommanderScreen() {
   }
 
   function resetChat() {
-    setDone(false);
-    setMessages([]);
-    setPendingAction(null);
-    loadAndStart();
+    if (messages.length > 0 && !done) {
+      Alert.alert(
+        'Nouvelle commande',
+        'Voulez-vous annuler la commande en cours et en démarrer une nouvelle ?',
+        [
+          { text: 'Non', style: 'cancel' },
+          { text: 'Oui, recommencer', style: 'destructive', onPress: () => {
+            setDone(false);
+            setMessages([]);
+            setPendingAction(null);
+            loadAndStart();
+          }},
+        ]
+      );
+    } else {
+      setDone(false);
+      setMessages([]);
+      setPendingAction(null);
+      loadAndStart();
+    }
   }
 
   // ── Success screen ──────────────────────────────────────

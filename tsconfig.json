@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "il-est-chouette-coursier", "supabase"]
+  "exclude": ["node_modules", "il-est-chouette-coursier", "il-est-chouette-client", "supabase"]
 }
