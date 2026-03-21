@@ -134,26 +134,8 @@ function OrderCard({ order, index, total, t }: { order: Order; index: number; to
         </View>
       </View>
 
-      {/* Progress bar */}
-      {!isCancelled && (
-        <View style={styles.progressBar}>
-          {STATUS_STEPS.map((s, i) => {
-            const info = getStatusInfo(s, t);
-            const done2 = step > i + 1;
-            const current = step === i + 1;
-            return (
-              <View key={s} style={styles.progressStep}>
-                <View style={[styles.progressDot, done2 && styles.progressDotDone, current && styles.progressDotCurrent]}>
-                  <Text style={[styles.progressDotText, (done2 || current) && { color: '#fff' }]}>{info.emoji}</Text>
-                </View>
-                {i < STATUS_STEPS.length - 1 && (
-                  <View style={[styles.progressLine, done2 && styles.progressLineDone]} />
-                )}
-              </View>
-            );
-          })}
-        </View>
-      )}
+      {/* Timeline */}
+      {!isCancelled && <OrderTimeline step={step} />}
 
       {/* Details */}
       <View style={styles.cardBody}>
@@ -172,6 +154,63 @@ function OrderCard({ order, index, total, t }: { order: Order; index: number; to
           </View>
         )}
       </View>
+    </View>
+  );
+}
+
+const TIMELINE_STEPS = [
+  { status: 'pending',  emoji: '📋', title: 'Commande reçue',      desc: 'Votre demande a bien été enregistrée' },
+  { status: 'assigned', emoji: '👤', title: 'Coursier assigné',    desc: 'Un coursier a accepté votre commande' },
+  { status: 'acceptee', emoji: '🚴', title: 'En route',            desc: 'Votre coursier est en chemin' },
+  { status: 'terminee', emoji: '✅', title: 'Livré',               desc: 'Votre commande a été livrée' },
+];
+
+function OrderTimeline({ step }: { step: number }) {
+  return (
+    <View style={styles.timeline}>
+      {TIMELINE_STEPS.map((s, i) => {
+        const isDone = step > i + 1;
+        const isCurrent = step === i + 1;
+        const isLast = i === TIMELINE_STEPS.length - 1;
+        return (
+          <View key={s.status} style={styles.timelineRow}>
+            {/* Left column: dot + line */}
+            <View style={styles.timelineLeft}>
+              <View style={[
+                styles.timelineDot,
+                isDone && styles.timelineDotDone,
+                isCurrent && styles.timelineDotCurrent,
+              ]}>
+                <Text style={styles.timelineDotEmoji}>{s.emoji}</Text>
+              </View>
+              {!isLast && (
+                <View style={[styles.timelineConnector, isDone && styles.timelineConnectorDone]} />
+              )}
+            </View>
+            {/* Right column: text */}
+            <View style={[styles.timelineContent, !isLast && { paddingBottom: 20 }]}>
+              <Text style={[
+                styles.timelineTitle,
+                isDone && styles.timelineTitleDone,
+                isCurrent && styles.timelineTitleCurrent,
+              ]}>
+                {s.title}
+              </Text>
+              <Text style={[
+                styles.timelineDesc,
+                !isDone && !isCurrent && styles.timelineDescFuture,
+              ]}>
+                {s.desc}
+              </Text>
+              {isCurrent && (
+                <View style={styles.timelineBadge}>
+                  <Text style={styles.timelineBadgeText}>En cours</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -218,14 +257,30 @@ const styles = StyleSheet.create({
   cardHeaderIndex: { fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   cardHeaderLabel: { fontSize: 15, color: '#fff', fontWeight: '700' },
 
-  progressBar: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-  progressStep: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  progressDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F3F4F6', borderWidth: 2, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' },
-  progressDotDone: { backgroundColor: GREEN, borderColor: GREEN },
-  progressDotCurrent: { backgroundColor: ORANGE, borderColor: ORANGE },
-  progressDotText: { fontSize: 15 },
-  progressLine: { flex: 1, height: 2, backgroundColor: '#E5E7EB', marginHorizontal: 3 },
-  progressLineDone: { backgroundColor: GREEN },
+  timeline: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  timelineRow: { flexDirection: 'row', gap: 14 },
+  timelineLeft: { alignItems: 'center', width: 38 },
+  timelineDot: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: '#F3F4F6', borderWidth: 2, borderColor: '#E5E7EB',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  timelineDotDone: { backgroundColor: GREEN, borderColor: GREEN },
+  timelineDotCurrent: { backgroundColor: ORANGE, borderColor: ORANGE },
+  timelineDotEmoji: { fontSize: 17 },
+  timelineConnector: { width: 2, flex: 1, backgroundColor: '#E5E7EB', marginVertical: 3, minHeight: 16 },
+  timelineConnectorDone: { backgroundColor: GREEN },
+  timelineContent: { flex: 1, paddingTop: 6 },
+  timelineTitle: { fontSize: 14, fontWeight: '600', color: '#9CA3AF' },
+  timelineTitleDone: { color: GREEN, fontWeight: '700' },
+  timelineTitleCurrent: { color: '#111827', fontWeight: '800' },
+  timelineDesc: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  timelineDescFuture: { color: '#D1D5DB' },
+  timelineBadge: {
+    alignSelf: 'flex-start', marginTop: 6,
+    backgroundColor: ORANGE, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3,
+  },
+  timelineBadgeText: { fontSize: 11, color: '#fff', fontWeight: '700' },
 
   cardBody: { padding: 18, gap: 12 },
   divider: { height: 1, backgroundColor: '#F3F4F6' },
