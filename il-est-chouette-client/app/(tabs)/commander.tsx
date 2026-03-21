@@ -61,6 +61,7 @@ export default function CommanderScreen() {
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [savedAddresses, setSavedAddresses] = useState('');
+  const [merchants, setMerchants] = useState<any[]>([]);
 
   useEffect(() => {
     loadAndStart();
@@ -92,6 +93,27 @@ export default function CommanderScreen() {
         if (addresses?.length) addrStr = addresses.map((a) => `${a.label}: ${a.address}`).join(', ');
       }
 
+      // Load active merchants + their products
+      const { data: merchantList } = await supabase
+        .from('merchants')
+        .select('id, name, address, category')
+        .eq('status', 'active');
+
+      let merchantsWithProducts: any[] = [];
+      if (merchantList && merchantList.length > 0) {
+        const { data: allProducts } = await supabase
+          .from('merchant_products')
+          .select('merchant_id, name, description, price, category')
+          .in('merchant_id', merchantList.map((m: any) => m.id))
+          .eq('available', true);
+
+        merchantsWithProducts = merchantList.map((m: any) => ({
+          ...m,
+          products: (allProducts ?? []).filter((p: any) => p.merchant_id === m.id),
+        }));
+      }
+
+      setMerchants(merchantsWithProducts);
       setUserName(name);
       setSavedAddresses(addrStr);
 
@@ -107,7 +129,7 @@ export default function CommanderScreen() {
         } catch {}
       }
 
-      await callAgent(initialMessages, name, addrStr);
+      await callAgent(initialMessages, name, addrStr, merchantsWithProducts);
     } catch {
       setLoading(false);
     }
@@ -117,6 +139,7 @@ export default function CommanderScreen() {
     apiMessages: { role: string; content: string }[],
     name: string,
     addresses: string,
+    merchantList?: any[],
   ) {
     try {
       const { data, error } = await supabase.functions.invoke('chat-agent', {
@@ -125,6 +148,7 @@ export default function CommanderScreen() {
           language: i18n.language,
           userName: name,
           savedAddresses: addresses,
+          merchants: merchantList ?? merchants,
         },
       });
       if (error) {
@@ -191,7 +215,7 @@ export default function CommanderScreen() {
     setInput('');
     setLoading(true);
     const apiMessages = newMessages.map((m) => ({ role: m.role, content: m.content }));
-    await callAgent(apiMessages, userName, savedAddresses);
+    await callAgent(apiMessages, userName, savedAddresses, merchants);
   }
 
   async function handleConfirmOrder() {

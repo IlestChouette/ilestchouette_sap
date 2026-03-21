@@ -2,7 +2,49 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
-function buildSystemPrompt(language: string, userName: string, savedAddresses: string): string {
+type MerchantProduct = { name: string; description?: string; price: number; category?: string };
+type Merchant = { id: string; name: string; address: string; category: string; products?: MerchantProduct[] };
+
+function buildMerchantsSection(merchants: Merchant[]): string {
+  if (!merchants || merchants.length === 0) return "";
+
+  const lines: string[] = [
+    "",
+    "PARTNER MERCHANTS (orders from these go through the platform):",
+  ];
+
+  for (const m of merchants) {
+    lines.push(`\n🏪 ${m.name} — ${m.category} | ${m.address} | merchant_id: ${m.id}`);
+    if (m.products && m.products.length > 0) {
+      const grouped: Record<string, MerchantProduct[]> = {};
+      for (const p of m.products) {
+        const cat = p.category ?? "Menu";
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(p);
+      }
+      for (const [cat, items] of Object.entries(grouped)) {
+        lines.push(`  ${cat}:`);
+        for (const item of items) {
+          lines.push(`    • ${item.name} — ${item.price.toFixed(2)}€${item.description ? ` (${item.description})` : ""}`);
+        }
+      }
+    }
+  }
+
+  lines.push(
+    "",
+    "When a client wants to order from a partner merchant:",
+    "- Use the exact product names and prices from the catalog above (never invent prices)",
+    "- Set pickup_address to the merchant's address",
+    "- Set service_id to 'food'",
+    "- Include merchant_id in the ACTION block",
+    "- Calculate price_items as the sum of ordered items, price_total = price_items + delivery fee (5€ base + 1€/km)",
+  );
+
+  return lines.join("\n");
+}
+
+function buildSystemPrompt(language: string, userName: string, savedAddresses: string, merchants: Merchant[]): string {
   const lang = language === "en" ? "English" : language === "es" ? "Spanish (español)" : "French (français)";
 
   return `You are the friendly AI assistant for "Il est chouette", a human courier service based in Nice, France.
@@ -23,6 +65,7 @@ SERVICES & PRICING:
 - 💻 IT support: 50€/h (min 1h)
 - 🤝 Personal assistance / accompaniment: 20€/h (min 1h)
 - 🔧 DIY / small repairs: 50€/h (min 1h)
+${buildMerchantsSection(merchants)}
 
 HOW TO GUIDE THE CONVERSATION:
 1. Greet warmly, ask what they need today
@@ -37,7 +80,7 @@ HOW TO GUIDE THE CONVERSATION:
 10. Give a clear final summary with total price and confirm
 11. When client confirms, end your message and append this JSON block at the very end:
 
-[ACTION]{"type":"create_order","service_id":"food","pickup_address":"Pizza Cresci, 5 rue Massena Nice","dropoff_address":"15 avenue Jean Medecin Nice","notes":"1 pizza 4 fromages 18€","price_items":18,"price_total":24,"hours":null,"is_asap":true,"scheduled_at":null,"payment_method":"on_site_cash"}[/ACTION]
+[ACTION]{"type":"create_order","service_id":"food","merchant_id":"uuid-or-null","pickup_address":"Pizza Cresci, 5 rue Massena Nice","dropoff_address":"15 avenue Jean Medecin Nice","notes":"1 pizza 4 fromages 18€","price_items":18,"price_total":24,"hours":null,"is_asap":true,"scheduled_at":null,"payment_method":"on_site_cash"}[/ACTION]
 
 SERVICE IDs to use: supermarket, meds, food, keys, shopping, express, voiturier, it, assist, bricolage
 PAYMENT IDs: online_card, on_site_cash, on_site_card
@@ -45,7 +88,7 @@ PAYMENT IDs: online_card, on_site_cash, on_site_card
 RULES:
 - Ask only 1–2 questions at a time, never overwhelm
 - Use emojis sparingly to be warm but not childish
-- Never invent item prices — always ask the client
+- Never invent item prices — always ask the client or use the partner catalog
 - For Nice geography: centre-ville ≈ 1–3km, cross-town ≈ 3–6km, suburbs ≈ 5–8km
 - Always show the [ACTION] block only when the client explicitly confirms "yes, proceed" or equivalent
 - The [ACTION] block must be at the very end of the message and is invisible to the client`;
@@ -62,7 +105,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { messages = [], language = "fr", userName = "", savedAddresses = "" } = await req.json();
+    const { messages = [], language = "fr", userName = "", savedAddresses = "", merchants = [] } = await req.json();
 
     const apiMessages = messages.length > 0
       ? messages
@@ -78,7 +121,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 1024,
-        system: buildSystemPrompt(language, userName, savedAddresses),
+        system: buildSystemPrompt(language, userName, savedAddresses, merchants),
         messages: apiMessages,
       }),
     });
