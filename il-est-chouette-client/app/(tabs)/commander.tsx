@@ -276,6 +276,10 @@ export default function CommanderScreen() {
       setPlacing(false);
       return;
     }
+
+    // Send email notification to admin
+    supabase.functions.invoke('notify-new-order', { body: { ...a, client_email: userEmail } });
+
     setDone(true);
     setPlacing(false);
     setPendingAction(null);
