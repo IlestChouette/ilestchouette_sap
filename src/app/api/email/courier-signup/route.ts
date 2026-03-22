@@ -6,6 +6,11 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
+    // Sanitisation — le destinataire est toujours fixe, jamais contrôlé par le client
+    const safeFirstName = String(body.first_name ?? "").slice(0, 100).replace(/[<>]/g, "");
+    const safeLastName = String(body.last_name ?? "").slice(0, 100).replace(/[<>]/g, "");
+    const safeEmail = String(body.email ?? "").slice(0, 200).replace(/[<>]/g, "");
+
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
       console.error("❌ RESEND_API_KEY manquant");
@@ -25,9 +30,9 @@ export async function POST(req: Request) {
 
     const { error } = await resend.emails.send({
       from: fromEmail,
-      to: [body.to ?? "allo@ilestchouette.fr"],
+      to: ["allo@ilestchouette.fr"], // destinataire fixe — jamais depuis le client
       subject: "Nouvelle candidature coursier",
-      html: `<p>Nouvelle candidature coursier : ${body.first_name} ${body.last_name} – ${body.email}</p>`,
+      html: `<p>Nouvelle candidature coursier : ${safeFirstName} ${safeLastName} – ${safeEmail}</p>`,
     });
 
     if (error) {

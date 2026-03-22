@@ -394,7 +394,10 @@ export default function OperatorDashboard() {
     if (status === "approved") {
       const res = await fetch("/api/couriers/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-operator-key": process.env.NEXT_PUBLIC_OPERATOR_API_KEY ?? "",
+        },
         body: JSON.stringify({
           email: s.email,
           first_name: s.first_name,

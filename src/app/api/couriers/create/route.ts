@@ -14,6 +14,12 @@ const fromAddress =
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export async function POST(req: Request) {
+  // Vérification clé secrète opérateur
+  const secret = req.headers.get("x-operator-key");
+  if (!secret || secret !== process.env.OPERATOR_API_KEY) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { email, first_name, last_name, phone } = body as {

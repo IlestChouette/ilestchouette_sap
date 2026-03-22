@@ -23,8 +23,7 @@ import type { HeatPoint } from "./AdminMap";
 const AdminMap = dynamic(() => import("./AdminMap"), { ssr: false });
 
 /* ─── Auth ─────────────────────────────────────────── */
-const ADMIN_EMAIL = "allo@ilestchouette.fr";
-const ADMIN_PASSWORD = "Bogota841219@@";
+// Credentials stored server-side only (env vars) — never in client code
 
 /* ─── Types ─────────────────────────────────────────── */
 type Order = {
@@ -177,18 +176,25 @@ export default function AdminPage() {
   const [authErr, setAuthErr] = useState("");
 
   useEffect(() => {
-    if (sessionStorage.getItem("admin_authed") === ADMIN_EMAIL) setAuthed(true);
+    if (sessionStorage.getItem("admin_authed") === "1") setAuthed(true);
   }, []);
 
-  function handleLogin() {
-    if (
-      email.trim().toLowerCase() === ADMIN_EMAIL &&
-      password === ADMIN_PASSWORD
-    ) {
-      sessionStorage.setItem("admin_authed", ADMIN_EMAIL);
-      setAuthed(true);
-    } else {
-      setAuthErr("Email ou mot de passe incorrect.");
+  async function handleLogin() {
+    setAuthErr("");
+    try {
+      const res = await fetch("/api/admin/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+      if (res.ok) {
+        sessionStorage.setItem("admin_authed", "1");
+        setAuthed(true);
+      } else {
+        setAuthErr("Email ou mot de passe incorrect.");
+      }
+    } catch {
+      setAuthErr("Erreur de connexion.");
     }
   }
 
