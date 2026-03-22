@@ -437,7 +437,7 @@ export default function AdminPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
           <div className="text-center mb-6">
-            <div className="text-4xl mb-2">🦉</div>
+            <img src="/logo_carre.svg" alt="Il est chouette" className="w-16 h-16 mx-auto mb-3" />
             <h1 className="text-2xl font-bold text-gray-900">Dashboard Admin</h1>
             <p className="text-sm text-gray-500 mt-1">Il est Chouette</p>
           </div>
