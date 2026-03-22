@@ -24,25 +24,22 @@ const SERVICES = [
 
 const REVIEWS = [
   {
-    name: "Sophie M.",
-    location: "Nice Centre",
+    name: "Fernando Fonseca",
     rating: 5,
-    text: "Service impeccable ! J'ai commandé mes courses et elles étaient livrées en moins d'une heure. Le coursier était très sympathique. Je recommande vivement !",
-    date: "il y a 2 semaines",
+    text: "Franchement super expérience avec Il est chouette ! J'avais besoin d'un service de voiturier en urgence et tout a été pris en charge rapidement. La personne était ponctuelle, très professionnelle et surtout très rassurante. Communication fluide, service efficace et aucun stress du début à la fin. Je recommande à 100 %, je referai appel à eux sans hésiter !",
+    date: "Janvier 2026",
   },
   {
-    name: "Jean-Paul R.",
-    location: "Nice Ouest",
+    name: "Alba Maria Vazquez Servian",
     rating: 5,
-    text: "Parfait pour les personnes comme moi qui ont du mal à se déplacer. Ils m'ont récupéré mes médicaments à la pharmacie rapidement. Prix très raisonnable.",
-    date: "il y a 1 mois",
+    text: "Super expérience ! Problème informatique réglé rapidement, avec beaucoup de patience et de gentillesse. Je me suis sentie en confiance du début à la fin. Je recommande à 100 % Il est chouette.",
+    date: "Février 2026",
   },
   {
-    name: "Famille Dubois",
-    location: "Promenade des Anglais",
+    name: "Test Num",
     rating: 5,
-    text: "En vacances à Nice, on a utilisé ce service pour des courses à l'hôtel. Réactifs, ponctuels, souriants. On les recontactera à notre prochain séjour !",
-    date: "il y a 3 semaines",
+    text: "Service de livraison de courses impeccable ! Je n'avais pas le temps de faire mes courses et Il est chouette s'est occupé de tout. Tout a été respecté à la lettre, les produits étaient conformes, bien choisis et livrés rapidement. Un vrai gain de temps et beaucoup moins de stress au quotidien. Je recommande sans hésiter !",
+    date: "Mars 2026",
   },
 ];
 
