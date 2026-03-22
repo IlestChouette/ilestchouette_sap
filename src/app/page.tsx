@@ -83,16 +83,57 @@ const jsonLd = {
   priceRange: "€€",
 };
 
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "Proposez-vous des services de bricolage à Nice ?",
+      acceptedAnswer: { "@type": "Answer", text: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules... Tarif : 50 € / heure. Contactez-nous au 06 95 42 73 12." },
+    },
+    {
+      "@type": "Question",
+      name: "Comment commander une livraison de courses à domicile à Nice ?",
+      acceptedAnswer: { "@type": "Answer", text: "Contactez-nous par téléphone ou WhatsApp au 06 95 42 73 12, ou commandez via notre application mobile. À partir de 8 € + 1 €/km." },
+    },
+    {
+      "@type": "Question",
+      name: "Livrez-vous des médicaments à domicile à Nice ?",
+      acceptedAnswer: { "@type": "Answer", text: "Oui, Il est chouette récupère vos ordonnances et médicaments à la pharmacie et vous les livre à domicile à Nice. Tarif : 6 € + 1 €/km." },
+    },
+    {
+      "@type": "Question",
+      name: "Êtes-vous disponibles le week-end et les jours fériés ?",
+      acceptedAnswer: { "@type": "Answer", text: "Oui, nous sommes disponibles 7 jours sur 7, de 8h à 22h, y compris le samedi, le dimanche et tous les jours fériés." },
+    },
+    {
+      "@type": "Question",
+      name: "Proposez-vous un service de voiturier à Nice ?",
+      acceptedAnswer: { "@type": "Answer", text: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Tarif : 20 € / heure." },
+    },
+    {
+      "@type": "Question",
+      name: "Livrez-vous dans toute la ville de Nice ?",
+      acceptedAnswer: { "@type": "Answer", text: "Nous intervenons dans toute la ville de Nice et ses environs proches. Un supplément de 1 €/km s'applique selon la distance." },
+    },
+  ],
+};
+
 export default function HomePage() {
   return (
     <>
-      {/* JSON-LD — rendu serveur, visible dans le HTML source */}
+      {/* LocalBusiness JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      {/* FAQ JSON-LD — aide Google à afficher des résultats enrichis */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
 
-      {/* Contenu interactif côté client */}
       <HomeClient />
     </>
   );
