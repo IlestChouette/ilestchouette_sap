@@ -3,7 +3,16 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
 type MerchantProduct = { name: string; description?: string; price: number; category?: string };
-type Merchant = { id: string; name: string; address: string; category: string; products?: MerchantProduct[] };
+type Merchant = { id: string; name: string; address: string; category: string; opening_hours?: string; products?: MerchantProduct[] };
+
+function getNiceTime(): string {
+  return new Date().toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
+    weekday: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function buildMerchantsSection(merchants: Merchant[]): string {
   if (!merchants || merchants.length === 0) return "";
@@ -14,7 +23,8 @@ function buildMerchantsSection(merchants: Merchant[]): string {
   ];
 
   for (const m of merchants) {
-    lines.push(`\n🏪 ${m.name} — ${m.category} | ${m.address} | merchant_id: ${m.id}`);
+    const hours = m.opening_hours ? ` | Horaires : ${m.opening_hours}` : "";
+    lines.push(`\n🏪 ${m.name} — ${m.category} | ${m.address}${hours} | merchant_id: ${m.id}`);
     if (m.products && m.products.length > 0) {
       const grouped: Record<string, MerchantProduct[]> = {};
       for (const p of m.products) {
@@ -39,6 +49,7 @@ function buildMerchantsSection(merchants: Merchant[]): string {
     "- Set service_id to 'food'",
     "- Include merchant_id in the ACTION block",
     "- Calculate price_items as the sum of ordered items, price_total = price_items + delivery fee (5€ base + 1€/km)",
+    "- If the merchant is currently closed based on their opening hours, warn the client and suggest scheduling the order for when they open",
   );
 
   return lines.join("\n");
@@ -54,17 +65,25 @@ ALWAYS respond in ${lang}. Keep your tone warm, familiar, like a helpful neighbo
 ${userName ? `The client's name is ${userName}. Use their first name naturally.` : ""}
 ${savedAddresses ? `Client's saved addresses: ${savedAddresses}` : ""}
 
-SERVICES & PRICING:
-- 🛒 Supermarket shopping: 8€ base + 1€/km
-- 💊 Pharmacy / medications: 6€ base + 1€/km
-- 🍕 Restaurant food delivery: 5€ base + 1€/km
-- 🗝️ Keys / documents: 6€ base + 1€/km
-- 🛍️ Shopping / parcels: 8€ base + 1€/km
-- ⚡ Express urgent delivery: 12€ base + 1€/km
-- 🚗 Valet / car driver: 20€/h (min 1h)
-- 💻 IT support: 50€/h (min 1h)
-- 🤝 Personal assistance / accompaniment: 20€/h (min 1h)
-- 🔧 DIY / small repairs: 50€/h (min 1h)
+CURRENT TIME IN NICE: ${getNiceTime()}
+
+SERVICES, PRICING & AVAILABILITY HOURS:
+- 🛒 Supermarket shopping: 8€ base + 1€/km | Hours: depends on the shop's opening hours
+- 💊 Pharmacy / medications: 6€ base + 1€/km | Hours: depends on the pharmacy's opening hours
+- 🍕 Restaurant / food delivery: 5€ base + 1€/km | Hours: depends on the restaurant's opening hours
+- 🗝️ Keys / documents / parcels: 6€ base + 1€/km | Hours: depends on the shop's opening hours
+- 🛍️ Shopping / boutiques: 8€ base + 1€/km | Hours: depends on the shop's opening hours
+- ⚡ Express urgent delivery: 12€ base + 1€/km | Hours: depends on availability
+- 🚗 Valet / car driver: 20€/h (min 1h) | Hours: 24h/24, 7j/7
+- 🤝 Personal assistance / accompaniment: 20€/h (min 1h) | Hours: 24h/24, 7j/7
+- 💻 IT support at home: 50€/h (min 1h) | Hours: 8h–19h, 7 days a week
+- 🔧 DIY / small repairs: 50€/h (min 1h) | Hours: 8h–19h, 7 days a week
+
+AVAILABILITY RULES:
+- For IT support and DIY/bricolage: only available 8h–19h. If the client requests outside these hours, apologize and offer to schedule for the next available slot.
+- For valet and personal assistance: always available 24h/24, 7j/7.
+- For deliveries (supermarket, pharmacy, food, shopping): availability depends on whether the shop/restaurant is open. Always ask the client if the shop is currently open, or warn them if you know the merchant's hours and they are closed. Suggest scheduling if closed.
+- For partner merchants: check their opening hours listed below. If currently closed, warn the client and suggest scheduling when they open.
 ${buildMerchantsSection(merchants)}
 
 HOW TO GUIDE THE CONVERSATION:

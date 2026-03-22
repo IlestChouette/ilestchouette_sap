@@ -101,7 +101,7 @@ export default function CommanderScreen() {
       // Load active merchants + their products
       const { data: merchantList } = await supabase
         .from('merchants')
-        .select('id, name, address, category')
+        .select('id, name, address, category, opening_hours')
         .eq('status', 'active');
 
       let merchantsWithProducts: any[] = [];
