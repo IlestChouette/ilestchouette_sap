@@ -337,6 +337,58 @@ export default function HomeClient() {
         </div>
       </section>
 
+      {/* ══════════════════════ COMMERCANT PARTENAIRE ══════════════════════ */}
+      <section className="bg-slate-900 text-white py-12 md:py-16">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="iec-reveal flex flex-col md:flex-row items-center gap-8 md:gap-16">
+            {/* Texte */}
+            <div className="flex-1 space-y-4">
+              <span className="inline-block text-xs font-bold tracking-[0.2em] uppercase text-orange-400">Commerçants & restaurants</span>
+              <h2 className="text-xl md:text-2xl font-semibold leading-snug">
+                Rejoignez le réseau<br className="hidden md:block" /> Il est chouette
+              </h2>
+              <p className="text-sm text-slate-300 max-w-md leading-relaxed">
+                Vous êtes restaurateur, pharmacien, fleuriste, épicier ? Référencez votre commerce sur notre plateforme et recevez des commandes livrées par nos coursiers. Gratuit pour s'inscrire.
+              </p>
+              <ul className="space-y-2 text-sm text-slate-300">
+                {[
+                  "✅ Visibilité auprès de nos clients à Nice",
+                  "🚴 Vos commandes livrées par nos coursiers",
+                  "📲 Notifications en temps réel",
+                  "🤝 Accompagnement personnalisé",
+                ].map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* CTA card */}
+            <div className="iec-reveal flex-shrink-0 w-full md:w-auto" style={{ transitionDelay: "0.15s" }}>
+              <div className="bg-white text-slate-900 rounded-3xl shadow-xl px-8 py-8 flex flex-col items-center gap-4 md:w-80">
+                <div className="text-4xl">🏪</div>
+                <h3 className="text-base font-bold text-center">Devenir commerçant partenaire</h3>
+                <p className="text-xs text-slate-500 text-center leading-relaxed">
+                  Inscription gratuite · Validation sous 48h · On vous appelle pour vous accompagner
+                </p>
+                <Link
+                  href="/commercant"
+                  className="w-full inline-flex items-center justify-center rounded-full bg-[#f7901d] hover:bg-orange-600 text-white text-sm font-bold px-6 py-3 shadow-md transition-transform hover:-translate-y-0.5 cursor-pointer"
+                  onClick={() => trackEvent("click_devenir_commercant")}
+                >
+                  S'inscrire gratuitement →
+                </Link>
+                <a
+                  href="mailto:allo@ilestchouette.fr"
+                  className="text-xs text-slate-400 hover:text-orange-500 transition-colors"
+                >
+                  Une question ? allo@ilestchouette.fr
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ══════════════════════ CONTACT / CTA FINAL ══════════════════════ */}
       <section id="contact" className="bg-slate-900 text-slate-50 border-t border-slate-800">
         <div className="max-w-6xl mx-auto px-4 py-10 md:py-14 flex flex-col md:flex-row items-start gap-10">
