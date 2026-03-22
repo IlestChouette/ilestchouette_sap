@@ -12,7 +12,7 @@ type Merchant = {
   phone: string; email: string; description: string; opening_hours: string;
   siret: string; status: string;
 };
-type Product = { id: string; name: string; description: string; price: number; category: string; available: boolean };
+type Product = { id: string; name: string; description: string; price: number; category: string; available: boolean; image_url?: string };
 type MerchantOrder = {
   id: string; status: string; created_at: string;
   order: { dropoff_address: string; notes: string; price_total: number; client_email: string };
@@ -35,6 +35,7 @@ export default function MerchantDashboard() {
   // Edit product
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -77,6 +78,18 @@ export default function MerchantDashboard() {
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
   }
 
+  async function uploadPhoto(file: File): Promise<string | null> {
+    if (!merchant) return null;
+    setUploadingPhoto(true);
+    const ext = file.name.split(".").pop();
+    const path = `${merchant.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+    setUploadingPhoto(false);
+    if (error) { alert("Erreur upload photo"); return null; }
+    const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+    return data.publicUrl;
+  }
+
   async function saveProduct() {
     if (!editingProduct || !merchant) return;
     setSavingProduct(true);
@@ -84,7 +97,7 @@ export default function MerchantDashboard() {
       await supabase.from("merchant_products").update({
         name: editingProduct.name, description: editingProduct.description,
         price: editingProduct.price, category: editingProduct.category,
-        available: editingProduct.available,
+        available: editingProduct.available, image_url: editingProduct.image_url ?? null,
       }).eq("id", editingProduct.id);
       setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? { ...p, ...editingProduct } as Product : p));
     } else {
@@ -92,6 +105,7 @@ export default function MerchantDashboard() {
         merchant_id: merchant.id, name: editingProduct.name,
         description: editingProduct.description, price: editingProduct.price,
         category: editingProduct.category, available: true,
+        image_url: editingProduct.image_url ?? null,
       }]).select().single();
       if (data) setProducts((prev) => [...prev, data as Product]);
     }
@@ -258,15 +272,21 @@ export default function MerchantDashboard() {
             )}
             {products.map((p) => (
               <div key={p.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                {/* Photo miniature */}
+                {p.image_url ? (
+                  <img src={p.image_url} alt={p.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
+                ) : (
+                  <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0">🍽️</div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-900">{p.name}</p>
                     {p.category && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{p.category}</span>}
                   </div>
-                  {p.description && <p className="text-sm text-gray-500 mt-0.5">{p.description}</p>}
+                  {p.description && <p className="text-sm text-gray-500 mt-0.5 truncate">{p.description}</p>}
                   <p className="text-orange-500 font-bold mt-1">{p.price.toFixed(2)} €</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <button onClick={() => toggleAvailable(p)}
                     className={`text-xs font-semibold px-2 py-1 rounded-full transition ${p.available ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                     {p.available ? "Dispo" : "Indispo"}
@@ -309,11 +329,44 @@ export default function MerchantDashboard() {
               <EField label="Catégorie" value={editingProduct.category ?? ""} onChange={(v) => setEditingProduct((p) => ({ ...p, category: v }))} />
             </div>
             <EField label="Description" value={editingProduct.description ?? ""} onChange={(v) => setEditingProduct((p) => ({ ...p, description: v }))} />
+
+            {/* Photo */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Photo du produit</label>
+              {editingProduct.image_url && (
+                <div className="relative mb-2 inline-block">
+                  <img src={editingProduct.image_url} alt="aperçu" className="w-24 h-24 rounded-xl object-cover border border-gray-200" />
+                  <button
+                    onClick={() => setEditingProduct((p) => ({ ...p, image_url: undefined }))}
+                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+                  >×</button>
+                </div>
+              )}
+              <label className={`flex items-center gap-2 border-2 border-dashed border-gray-200 rounded-xl px-4 py-3 cursor-pointer hover:border-orange-400 transition ${uploadingPhoto ? "opacity-50" : ""}`}>
+                <span className="text-sm text-gray-500">
+                  {uploadingPhoto ? "Upload en cours…" : editingProduct.image_url ? "Changer la photo" : "📷 Choisir une photo"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingPhoto}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const url = await uploadPhoto(file);
+                    if (url) setEditingProduct((p) => ({ ...p, image_url: url }));
+                  }}
+                />
+              </label>
+              <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP · max 5 Mo recommandé</p>
+            </div>
+
             <div className="flex gap-3 pt-2">
               <button onClick={() => setEditingProduct(null)} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Annuler</button>
-              <button onClick={saveProduct} disabled={savingProduct || !editingProduct.name}
+              <button onClick={saveProduct} disabled={savingProduct || uploadingPhoto || !editingProduct.name}
                 className="flex-1 bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50">
-                {savingProduct ? "…" : "Enregistrer"}
+                {savingProduct ? "Enregistrement…" : "Enregistrer"}
               </button>
             </div>
           </div>
