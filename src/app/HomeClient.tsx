@@ -2,39 +2,41 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const WHATSAPP_URL =
   "https://wa.me/33695427312?text=" +
-  encodeURIComponent("Bonjour, je voudrais commander une course avec Il est chouette.");
+  encodeURIComponent(
+    "Bonjour, je voudrais commander une course avec Il est chouette."
+  );
 
 const SERVICES = [
-  { id: "supermarket", emoji: "🛒", label: "Courses supermarché", desc: "On fait vos courses à votre place dans votre magasin habituel." },
+  { id: "supermarket", emoji: "🛒", label: "Courses supermarché", desc: "On fait tes courses à ta place dans ton magasin habituel." },
   { id: "meds", emoji: "💊", label: "Médicaments & pharmacie", desc: "Récupération d'ordonnances et de médicaments à l'officine." },
-  { id: "food", emoji: "🍕", label: "Nourriture & repas", desc: "Resto, snack ou boulangerie : on va chercher ce que vous voulez." },
-  { id: "keys", emoji: "🔑", label: "Clés & objets", desc: "Double de clé à apporter, colis à déposer — on s'en occupe." },
+  { id: "food", emoji: "🍕", label: "Nourriture & repas", desc: "Resto, snack ou boulangerie : on va chercher ce que tu veux." },
+  { id: "keys", emoji: "🔑", label: "Clés & objets", desc: "Un double de clé à apporter ? Un colis à déposer ? On s'en occupe." },
   { id: "shopping", emoji: "🛍️", label: "Achats boutiques", desc: "Boutiques de quartier, petits commerces, achats du quotidien." },
-  { id: "assist", emoji: "🤝", label: "Accompagnement", desc: "Accompagnement à un rendez-vous, aide pour les démarches." },
-  { id: "valet", emoji: "🚗", label: "Voiturier", desc: "Service de voiturier pour hôtels, résidences et événements." },
+  { id: "assist", emoji: "🤝", label: "Accompagnement", desc: "Accompagnement à un rendez-vous, aide pour les démarches, etc." },
+  { id: "valet", emoji: "🚗", label: "Voiturier", desc: "Service de voiturier pour hôtels, résidences et événements.", },
   { id: "it", emoji: "💻", label: "Dépannage informatique", desc: "Intervention à domicile pour PC, imprimante, wifi, smartphone." },
   { id: "handyman", emoji: "🔨", label: "Bricolage & petits travaux", desc: "Montage meuble, petite réparation, remplacement d'ampoule..." },
 ];
 
 const SITUATIONS = [
   {
-    title: "Marc, télétravail — Quartier Carras",
+    title: "Client · Marc, télétravail – Quartier Carras",
     quote: "« Je suis en réunion toute la journée, impossible de sortir. J'ai besoin de mes courses drive ce soir. »",
     answer: "✓ Coursier trouvé · retrait drive + livraison à l'heure demandée.",
   },
   {
-    title: "Mme Lefebvre, 82 ans — Nice Ouest",
+    title: "Cliente · Madame L., 82 ans – Nice Ouest",
     quote: "« Je ne peux pas sortir aujourd'hui, j'ai besoin qu'on me livre mes médicaments et un peu de nourriture. »",
-    answer: "✓ Coursier trouvé · pharmacie + courses. Livraison dans la journée.",
+    answer: "✓ Coursier trouvé · visite à la pharmacie + courses rapides. Livraison prévue dans la journée.",
   },
   {
-    title: "Famille en vacances — Promenade des Anglais",
+    title: "Famille en vacances – Promenade des Anglais",
     quote: "« On vient d'arriver à l'hôtel, on a besoin d'eau, de snacks et de crème solaire pour les enfants. »",
-    answer: "✓ Coursier trouvé · achats en supérette + livraison hôtel en < 1h.",
+    answer: "✓ Coursier trouvé · achats en supérette + livraison à l'hôtel en moins d'1 heure.",
   },
 ];
 
@@ -43,13 +45,13 @@ const PRICING = [
   { label: "Médicaments & pharmacie", price: "6 € + 1 €/km" },
   { label: "Nourriture & repas", price: "5 € + 1 €/km" },
   { label: "Clés / objets & petits colis", price: "6 € + 1 €/km" },
-  { label: "Achats boutiques", price: "8 € + 1 €/km" },
+  { label: "Achats boutiques & petits commerces", price: "8 € + 1 €/km" },
   { label: "Course éco", price: "7 € + 1 €/km" },
   { label: "Course express (prioritaire)", price: "12 € + 1 €/km" },
-  { label: "Accompagnement (rendez-vous, aide, démarches)", price: "20 € / heure" },
-  { label: "Voiturier (hôtel, résidence, événements)", price: "20 € / heure" },
-  { label: "Dépannage informatique à domicile", price: "50 € / heure" },
-  { label: "Bricolage & petits travaux", price: "50 € / heure" },
+  { label: "Accompagnement (rendez-vous, aide, démarches…)", price: "20 € / heure (sans km)" },
+  { label: "Voiturier (hôtel, résidence, événements…)", price: "20 € / heure (sans km)" },
+  { label: "Dépannage informatique à domicile", price: "50 € / heure (sans km)" },
+  { label: "Bricolage & petits travaux", price: "50 € / heure (sans km)" },
   { label: "Mission spéciale / autre besoin", price: "Sur devis" },
 ];
 
@@ -80,33 +82,22 @@ const FAQ = [
   },
 ];
 
-const trackEvent = (name: string) => {
+const trackEvent = (eventName: string) => {
   if (typeof window === "undefined") return;
-  (window as any).gtag?.("event", name);
+  (window as any).gtag?.("event", eventName);
 };
 
 export default function HomeClient() {
   const [activeSituation, setActiveSituation] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const blob1Ref = useRef<HTMLDivElement>(null);
-  const blob2Ref = useRef<HTMLDivElement>(null);
   const situation = SITUATIONS[activeSituation];
 
-  // Situation rotation
   useEffect(() => {
-    const id = setInterval(() => setActiveSituation((p) => (p + 1) % SITUATIONS.length), 20000);
+    const id = setInterval(
+      () => setActiveSituation((prev) => (prev + 1) % SITUATIONS.length),
+      20000
+    );
     return () => clearInterval(id);
-  }, []);
-
-  // Hero parallax blobs
-  useEffect(() => {
-    const handleScroll = () => {
-      const y = window.scrollY;
-      if (blob1Ref.current) blob1Ref.current.style.transform = `translateY(${y * 0.3}px)`;
-      if (blob2Ref.current) blob2Ref.current.style.transform = `translateY(${y * 0.15}px)`;
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Scroll reveal
@@ -120,179 +111,223 @@ export default function HomeClient() {
   }, []);
 
   return (
-    <main>
-      {/* ══════════════════════ HERO ══════════════════════ */}
-      <section style={{ minHeight: "100vh", background: "#080808", position: "relative", overflow: "hidden", display: "flex", alignItems: "center" }}>
-        {/* Parallax blobs */}
-        <div ref={blob1Ref} style={{ position: "absolute", top: "-20%", left: "-15%", width: "70vw", height: "70vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(249,115,22,0.2) 0%, transparent 70%)", filter: "blur(80px)", pointerEvents: "none" }} />
-        <div ref={blob2Ref} style={{ position: "absolute", bottom: "-15%", right: "-10%", width: "55vw", height: "55vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(249,115,22,0.12) 0%, transparent 70%)", filter: "blur(100px)", pointerEvents: "none" }} />
-        {/* Grid pattern */}
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(249,115,22,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,0.035) 1px, transparent 1px)", backgroundSize: "80px 80px", pointerEvents: "none" }} />
+    <main className="min-h-screen bg-slate-50 text-slate-900">
 
-        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "100px 24px 80px", position: "relative", zIndex: 10, width: "100%" }}>
-          <div className="iec-hero-grid">
-            {/* Left: text */}
-            <div>
-              <div style={{ marginBottom: 32 }}>
-                <Image src="/logo-chouette.svg" alt="Il est chouette — Coursier humain à Nice" width={160} height={54} priority />
+      {/* ══════════════════════ HERO ORANGE ══════════════════════ */}
+      <section className="relative overflow-hidden bg-[#f7901d] text-white">
+        <div className="max-w-6xl mx-auto px-4 py-12 md:py-20 lg:py-24 grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-10 items-center">
+          {/* Texte */}
+          <div className="space-y-5">
+            <p className="text-xs tracking-[0.25em] uppercase">
+              NICE · COURSIER HUMAIN · SERVICE À LA PERSONNE
+            </p>
+            <h1 className="text-2xl md:text-3xl lg:text-[2.2rem] font-bold leading-tight">
+              Nous sommes Il est chouette
+              <span className="block mt-2">
+                On facilite votre quotidien, d'une façon simple et rapide.
+              </span>
+            </h1>
+
+            <p className="text-sm md:text-base text-orange-50/90 max-w-xl">
+              Un accompagnement chez le médecin, aller chercher ou envoyer un
+              colis, aller faire les courses, livraison de nourriture,
+              voiturier, bricolage et même dépannage informatique.
+            </p>
+
+            <div className="flex flex-wrap gap-3 pt-2">
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 hover:bg-black text-sm md:text-base px-6 py-2.5 font-semibold shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
+                onClick={() => trackEvent("click_whatsapp_hero")}
+              >
+                Nous contacter
+              </a>
+              <a
+                href="tel:+33695427312"
+                className="inline-flex items-center justify-center rounded-full bg-slate-900/90 hover:bg-slate-900 text-sm md:text-base px-6 py-2.5 font-semibold shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
+                onClick={() => trackEvent("click_phone_hero")}
+              >
+                06 95 42 73 12
+              </a>
+              <Link
+                href="/coursier"
+                className="inline-flex items-center justify-center rounded-full bg-white/95 hover:bg-white text-sm md:text-base px-6 py-2.5 font-semibold text-slate-900 shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
+                onClick={() => trackEvent("click_devenir_coursier_hero")}
+              >
+                Devenir coursier
+              </Link>
+            </div>
+
+            <p className="text-xs md:text-sm text-orange-50/85 pt-1">
+              Service humain, local et bienveillant pour les habitants,
+              seniors et touristes à Nice.
+            </p>
+          </div>
+
+          {/* Visuel hero */}
+          <div className="relative">
+            {/* Desktop */}
+            <div className="hidden md:block relative min-h-[320px]">
+              <div className="absolute right-[-20px] bottom-[40px] lg:right-[-40px] lg:bottom-[80px]">
+                <Image
+                  src="/hero.svg"
+                  alt="Personnage Il est chouette"
+                  width={280}
+                  height={280}
+                  className="drop-shadow-xl"
+                  style={{ animation: "iec-float 4s ease-in-out infinite" }}
+                />
               </div>
 
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(249,115,22,0.1)", border: "1px solid rgba(249,115,22,0.22)", borderRadius: 100, padding: "7px 16px", marginBottom: 24 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#F97316", display: "inline-block", animation: "iec-blink 2s infinite" }} />
-                <span style={{ fontSize: 12, color: "rgba(249,115,22,0.85)", fontWeight: 600, letterSpacing: 0.5 }}>Nice · 7j/7 · 8h – 22h</span>
+              <div className="absolute left-0 top-0 max-w-[360px] bg-white text-slate-900 rounded-3xl shadow-xl px-5 py-4">
+                <p className="text-xs font-semibold text-slate-700">{situation.title}</p>
+                <p className="mt-1 text-xs text-slate-500 leading-snug">{situation.quote}</p>
               </div>
 
-              <h1 style={{ fontSize: "clamp(2rem, 4.5vw, 3.4rem)", fontWeight: 800, color: "#FFFFFF", lineHeight: 1.1, margin: "0 0 20px", letterSpacing: -1 }}>
-                Votre assistant<br />
-                <span style={{ color: "#F97316" }}>personnel</span> à Nice
-              </h1>
-
-              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.5)", lineHeight: 1.75, margin: "0 0 36px", maxWidth: 500 }}>
-                Courses, médicaments, repas, accompagnement, voiturier, bricolage, dépannage informatique — un seul numéro pour tout gérer.
-              </p>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 32 }}>
-                <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="iec-btn-primary" onClick={() => trackEvent("click_whatsapp_hero")}>
-                  💬 Commander par WhatsApp
-                </a>
-                <a href="tel:+33695427312" className="iec-btn-ghost" onClick={() => trackEvent("click_phone_hero")}>
-                  📞 06 95 42 73 12
-                </a>
-              </div>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 20 }}>
-                {["✅ Service humain local", "⭐ Coursiers vérifiés", "🛡️ Paiement sécurisé"].map((b) => (
-                  <span key={b} style={{ fontSize: 12, color: "rgba(255,255,255,0.32)" }}>{b}</span>
-                ))}
+              <div className="absolute left-[32px] bottom-[10px] max-w-[340px] bg-[#fff4de] text-slate-900 rounded-3xl shadow-md px-4 py-3 border border-orange-200">
+                <p className="text-xs font-semibold">Il est chouette</p>
+                <p className="mt-1 text-[11px] text-slate-600 leading-snug">{situation.answer}</p>
+                <p className="mt-2 text-[10px] text-slate-400">
+                  Nouvelle situation affichée toutes les 20 secondes.
+                </p>
               </div>
             </div>
 
-            {/* Right: situation cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 20, padding: "20px 22px", backdropFilter: "blur(12px)" }}>
-                <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, color: "rgba(249,115,22,0.75)", textTransform: "uppercase", letterSpacing: 0.5 }}>{situation.title}</p>
-                <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.55)", lineHeight: 1.65 }}>{situation.quote}</p>
+            {/* Mobile */}
+            <div className="md:hidden flex flex-col items-center gap-3 mt-6">
+              <Image
+                src="/hero.svg"
+                alt="Personnage Il est chouette"
+                width={240}
+                height={240}
+                className="drop-shadow-xl"
+                style={{ animation: "iec-float 4s ease-in-out infinite" }}
+              />
+              <div className="w-full max-w-sm bg-white text-slate-900 rounded-3xl shadow-xl px-4 py-3">
+                <p className="text-xs font-semibold text-slate-700">{situation.title}</p>
+                <p className="mt-1 text-xs text-slate-500 leading-snug">{situation.quote}</p>
               </div>
-              <div style={{ background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.18)", borderRadius: 20, padding: "16px 22px" }}>
-                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: "#F97316", textTransform: "uppercase", letterSpacing: 0.5 }}>Il est chouette</p>
-                <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.65 }}>{situation.answer}</p>
-              </div>
-              <div style={{ display: "flex", justifyContent: "center", paddingTop: 8 }}>
-                <Image src="/hero.svg" alt="Coursier Il est chouette à Nice" width={190} height={190} style={{ filter: "drop-shadow(0 4px 30px rgba(249,115,22,0.25))", animation: "iec-float 4s ease-in-out infinite" }} />
+              <div className="w-full max-w-sm bg-[#fff4de] text-slate-900 rounded-3xl shadow-md px-4 py-3 border border-orange-200">
+                <p className="text-xs font-semibold">Il est chouette</p>
+                <p className="mt-1 text-[11px] text-slate-600 leading-snug">{situation.answer}</p>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div style={{ position: "absolute", bottom: 28, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, animation: "iec-bounce 2.5s ease-in-out infinite" }}>
-          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.22)", letterSpacing: 3, textTransform: "uppercase" }}>Défiler</span>
-          <svg width="14" height="8" viewBox="0 0 14 8" fill="none"><path d="M1 1l6 6 6-6" stroke="rgba(255,255,255,0.22)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </div>
       </section>
 
       {/* ══════════════════════ SERVICES ══════════════════════ */}
-      <section id="services" style={{ background: "#FFFFFF", padding: "88px 0" }}>
-        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px" }}>
-          <div className="iec-reveal" style={{ textAlign: "center", marginBottom: 56 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#F97316", letterSpacing: 3, textTransform: "uppercase", margin: "0 0 14px" }}>Nos services à Nice</p>
-            <h2 style={{ fontSize: "clamp(1.7rem, 3.5vw, 2.6rem)", fontWeight: 800, color: "#0A0A0A", margin: "0 0 14px", letterSpacing: -0.75 }}>Tout ce qu'on peut faire pour vous</h2>
-            <p style={{ fontSize: 15, color: "#64748B", maxWidth: 520, margin: "0 auto", lineHeight: 1.7 }}>Un seul numéro pour tous vos besoins du quotidien à Nice. Service humain, local et bienveillant.</p>
+      <section id="services" className="max-w-6xl mx-auto px-4 py-12 md:py-16 space-y-6">
+        <div className="iec-reveal flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <h2 className="text-xl md:text-2xl font-semibold">Nos services du quotidien.</h2>
+            <p className="text-sm text-slate-600 max-w-xl mt-1">
+              Une seule plateforme pour gérer les petits besoins qui prennent du temps : on s'adapte à ta situation, à ton logement et à ton rythme.
+            </p>
           </div>
+        </div>
 
-          <div className="iec-services-grid">
-            {SERVICES.map((s, i) => (
-              <div key={s.id} className="iec-reveal" style={{ transitionDelay: `${i * 0.06}s` }}>
-                <div className="iec-service-card">
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>{s.emoji}</div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", margin: "0 0 8px" }}>{s.label}</h3>
-                  <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.65, margin: 0 }}>{s.desc}</p>
-                </div>
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5">
+          {SERVICES.map((s, i) => (
+            <div key={s.id} className="iec-reveal" style={{ transitionDelay: `${i * 0.07}s` }}>
+              <div className="iec-service-card rounded-2xl border border-slate-100 bg-white p-4 shadow-sm h-full">
+                <div className="text-2xl mb-2">{s.emoji}</div>
+                <h3 className="text-sm font-semibold mb-1">{s.label}</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">{s.desc}</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* ══════════════════════ HOW IT WORKS ══════════════════════ */}
-      <section id="how" style={{ background: "#F8FAFC", padding: "88px 0" }}>
-        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px" }}>
-          <div className="iec-reveal" style={{ textAlign: "center", marginBottom: 56 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#F97316", letterSpacing: 3, textTransform: "uppercase", margin: "0 0 14px" }}>Simple & rapide</p>
-            <h2 style={{ fontSize: "clamp(1.7rem, 3.5vw, 2.6rem)", fontWeight: 800, color: "#0A0A0A", margin: 0, letterSpacing: -0.75 }}>Comment ça marche ?</h2>
+      {/* ══════════════════════ TARIFS ══════════════════════ */}
+      <section id="tarifs" className="bg-white border-y border-slate-100 py-12 md:py-16">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="iec-reveal">
+            <h2 className="text-xl md:text-2xl font-semibold text-center mb-3">
+              Tarifs simples et lisibles.
+            </h2>
+            <p className="text-sm text-slate-600 text-center max-w-2xl mx-auto mb-3">
+              Pour les courses, pharmacie, nourriture et petits colis : tu as un{" "}
+              <span className="font-semibold">tarif de base</span>, puis on ajoute{" "}
+              <span className="font-semibold">1 € par kilomètre</span> entre le point de départ et le point d'arrivée.
+            </p>
+            <p className="text-sm text-slate-600 text-center max-w-2xl mx-auto mb-8">
+              Pour les missions à l'heure (voiturier, accompagnement, dépannage informatique, bricolage), tu paies un{" "}
+              <span className="font-semibold">tarif horaire fixe</span>, sans compter les kilomètres.
+            </p>
           </div>
 
-          <div className="iec-steps-grid">
-            {[
-              { num: "01", title: "Tu nous contactes", desc: "Par téléphone, WhatsApp ou via notre application. Tu décris ce dont tu as besoin en quelques mots." },
-              { num: "02", title: "On trouve ton coursier", desc: "On sélectionne un coursier disponible à proximité. Il prend en charge ta mission en temps réel." },
-              { num: "03", title: "Tu es livré & rassuré", desc: "Le coursier livre en main propre. Tu peux suivre la mission en direct depuis l'application." },
-            ].map((step, i) => (
-              <div key={step.num} className="iec-reveal" style={{ textAlign: "center", transitionDelay: `${i * 0.15}s` }}>
-                <div style={{ width: 60, height: 60, borderRadius: "50%", background: "#0A0A0A", color: "#F97316", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, margin: "0 auto 20px", letterSpacing: -0.5 }}>{step.num}</div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: "0 0 10px" }}>{step.title}</h3>
-                <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.75, margin: 0 }}>{step.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ textAlign: "center", marginTop: 52 }}>
-            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="iec-btn-dark" onClick={() => trackEvent("click_whatsapp_how")}>
-              Commander maintenant →
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════ PRICING ══════════════════════ */}
-      <section id="tarifs" style={{ background: "#FFFFFF", padding: "88px 0" }}>
-        <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 24px" }}>
-          <div className="iec-reveal" style={{ textAlign: "center", marginBottom: 48 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#F97316", letterSpacing: 3, textTransform: "uppercase", margin: "0 0 14px" }}>Transparent</p>
-            <h2 style={{ fontSize: "clamp(1.7rem, 3.5vw, 2.6rem)", fontWeight: 800, color: "#0A0A0A", margin: "0 0 12px", letterSpacing: -0.75 }}>Tarifs simples et lisibles</h2>
-            <p style={{ fontSize: 14, color: "#64748B", maxWidth: 440, margin: "0 auto", lineHeight: 1.7 }}>Tarif de base + 1 € par km pour les livraisons. Tarif horaire fixe pour les missions à domicile.</p>
-          </div>
-
-          <div className="iec-reveal" style={{ transitionDelay: "0.1s", borderRadius: 20, overflow: "hidden", border: "1px solid #E2E8F0", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", padding: "13px 24px", background: "#0A0A0A", color: "#fff" }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Service</span>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>Tarif</span>
+          <div className="iec-reveal max-w-3xl mx-auto bg-slate-50 border border-slate-100 rounded-2xl overflow-hidden" style={{ transitionDelay: "0.1s" }}>
+            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] text-xs md:text-sm font-semibold bg-slate-100/70 px-4 py-2">
+              <div>Type de mission</div>
+              <div className="text-right">Tarif</div>
             </div>
             {PRICING.map((row, idx) => (
-              <div key={row.label} style={{ display: "grid", gridTemplateColumns: "1fr auto", padding: "14px 24px", background: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC", borderTop: "1px solid #E2E8F0", alignItems: "center", gap: 16 }}>
-                <span style={{ fontSize: 14, color: "#334155" }}>{row.label}</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#F97316", whiteSpace: "nowrap" }}>{row.price}</span>
+              <div
+                key={row.label}
+                className={`grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] px-4 py-3 text-xs md:text-sm ${idx % 2 === 1 ? "bg-white" : "bg-slate-50"}`}
+              >
+                <div>{row.label}</div>
+                <div className="text-right font-semibold">{row.price}</div>
               </div>
             ))}
           </div>
-          <p style={{ textAlign: "center", fontSize: 12, color: "#94A3B8", marginTop: 14 }}>
-            Ex : course supermarché à 3 km = <strong>11 €</strong> · Bricolage 1h = <strong>50 €</strong>
+
+          <p className="text-[11px] text-slate-500 text-center mt-3">
+            Exemple 1 : course supermarché à 8 € + 3 km = 11 € au total.{" "}
+            <br />
+            Exemple 2 : dépannage informatique à domicile = 50 € pour 1 heure.
           </p>
         </div>
       </section>
 
+      {/* ══════════════════════ COMMENT ÇA MARCHE ══════════════════════ */}
+      <section id="how" className="max-w-6xl mx-auto px-4 py-12 md:py-16 space-y-8">
+        <h2 className="iec-reveal text-xl md:text-2xl font-semibold text-center">
+          Comment ça marche ?
+        </h2>
+        <div className="grid md:grid-cols-3 gap-6">
+          {[
+            { num: "1", title: "Tu nous contactes", desc: "Par téléphone, WhatsApp ou via ton hôtel / résidence partenaire. Tu expliques ce dont tu as besoin." },
+            { num: "2", title: "On trouve le bon coursier", desc: "On regarde les disponibilités en temps réel et on confie ta mission à un coursier chouette à proximité." },
+            { num: "3", title: "Tu es livré & rassuré", desc: "Le coursier t'appelle si besoin, livre en main propre et peut saisir un code de validation pour sécuriser la livraison." },
+          ].map((step, i) => (
+            <div key={step.num} className="iec-reveal bg-white rounded-2xl shadow-sm p-5" style={{ transitionDelay: `${i * 0.15}s` }}>
+              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-xs font-bold text-orange-600 mb-3">
+                {step.num}
+              </div>
+              <h3 className="text-sm font-semibold mb-1">{step.title}</h3>
+              <p className="text-xs text-slate-500">{step.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ══════════════════════ FAQ ══════════════════════ */}
-      <section id="faq" style={{ background: "#F8FAFC", padding: "88px 0" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 24px" }}>
-          <div className="iec-reveal" style={{ textAlign: "center", marginBottom: 48 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#F97316", letterSpacing: 3, textTransform: "uppercase", margin: "0 0 14px" }}>FAQ</p>
-            <h2 style={{ fontSize: "clamp(1.7rem, 3.5vw, 2.6rem)", fontWeight: 800, color: "#0A0A0A", margin: 0, letterSpacing: -0.75 }}>Vos questions, nos réponses</h2>
+      <section id="faq" className="bg-white border-t border-slate-100 py-12 md:py-16">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="iec-reveal text-center mb-10">
+            <h2 className="text-xl md:text-2xl font-semibold">Questions fréquentes</h2>
+            <p className="text-sm text-slate-500 mt-1">Tout ce que vous voulez savoir sur nos services à Nice.</p>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="flex flex-col gap-3">
             {FAQ.map((item, i) => (
               <div key={i} className="iec-reveal" style={{ transitionDelay: `${i * 0.07}s` }}>
-                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 16, overflow: "hidden", boxShadow: openFaq === i ? "0 4px 24px rgba(249,115,22,0.08)" : "none", transition: "box-shadow 0.2s" }}>
+                <div className={`rounded-2xl border transition-shadow ${openFaq === i ? "border-orange-200 shadow-md" : "border-slate-100 shadow-sm"} bg-white overflow-hidden`}>
                   <button
                     onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                    style={{ width: "100%", textAlign: "left", padding: "20px 24px", background: "none", border: "none", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}
+                    className="w-full text-left px-5 py-4 flex justify-between items-start gap-4 cursor-pointer"
                   >
-                    <span style={{ fontSize: 15, fontWeight: 600, color: "#0F172A", lineHeight: 1.45 }}>{item.q}</span>
-                    <span style={{ fontSize: 22, color: "#F97316", flexShrink: 0, transition: "transform 0.2s", transform: openFaq === i ? "rotate(45deg)" : "none", lineHeight: 1 }}>+</span>
+                    <span className="text-sm font-semibold text-slate-800 leading-snug">{item.q}</span>
+                    <span className={`text-orange-500 text-xl flex-shrink-0 leading-none transition-transform duration-200 ${openFaq === i ? "rotate-45" : ""}`}>+</span>
                   </button>
                   <div style={{ maxHeight: openFaq === i ? 300 : 0, overflow: "hidden", transition: "max-height 0.3s ease" }}>
-                    <div style={{ padding: "0 24px 20px", fontSize: 14, color: "#64748B", lineHeight: 1.75, borderTop: "1px solid #F1F5F9" }}>
-                      {item.a}
+                    <div className="px-5 pb-4 text-xs text-slate-500 leading-relaxed border-t border-slate-50">
+                      <div className="pt-3">{item.a}</div>
                     </div>
                   </div>
                 </div>
@@ -302,56 +337,52 @@ export default function HomeClient() {
         </div>
       </section>
 
-      {/* ══════════════════════ CTA FINAL ══════════════════════ */}
-      <section id="contact" style={{ background: "#080808", padding: "96px 0", position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "70vw", height: "50vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(249,115,22,0.13) 0%, transparent 70%)", filter: "blur(80px)", pointerEvents: "none" }} />
-
-        <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 24px", textAlign: "center", position: "relative", zIndex: 10 }}>
-          <div className="iec-reveal">
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 28 }}>
-              <Image src="/logo_carre.svg" alt="Il est chouette" width={56} height={56} style={{ opacity: 0.85 }} />
-            </div>
-            <h2 style={{ fontSize: "clamp(2rem, 5vw, 3.4rem)", fontWeight: 800, color: "#FFFFFF", margin: "0 0 16px", letterSpacing: -1, lineHeight: 1.1 }}>
-              Essayez Il est chouette
+      {/* ══════════════════════ CONTACT / CTA FINAL ══════════════════════ */}
+      <section id="contact" className="bg-slate-900 text-slate-50 border-t border-slate-800">
+        <div className="max-w-6xl mx-auto px-4 py-10 md:py-14 flex flex-col md:flex-row items-start gap-10">
+          <div className="iec-reveal flex-1 space-y-3">
+            <h2 className="text-xl md:text-2xl font-semibold">
+              Envie d'essayer Il est chouette ?
             </h2>
-            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.45)", margin: "0 0 44px", lineHeight: 1.75 }}>
-              Service humain, local et bienveillant à Nice.<br />
-              Disponible 7j/7 de 8h à 22h.
+            <p className="text-sm text-slate-300">
+              Contacte-nous pour ta prochaine course ou pour devenir coursier.
+              Nous sommes basés à Nice et nous développons la communauté pas à pas.
             </p>
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "center", marginBottom: 36 }}>
-              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="iec-btn-primary" onClick={() => trackEvent("click_whatsapp_cta")}>
-                💬 WhatsApp
-              </a>
-              <a href="tel:+33695427312" className="iec-btn-ghost" onClick={() => trackEvent("click_phone_cta")}>
-                📞 06 95 42 73 12
-              </a>
+            <p className="text-sm">
+              📞 <span className="font-semibold">06 95 42 73 12</span>
+              <br />
+              💬 WhatsApp : <span className="font-semibold">06 95 42 73 12</span>
+              <br />
+              ✉️ Email : <span className="font-semibold">allo@ilestchouette.fr</span>
+            </p>
+            <div className="flex items-center gap-3 pt-2">
+              <span className="text-xs text-slate-400">Suivre Il est chouette :</span>
+              <a href="#" aria-label="Instagram" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors">IG</a>
+              <a href="#" aria-label="Facebook" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors">f</a>
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors" onClick={() => trackEvent("click_whatsapp_footer")}>WA</a>
             </div>
+          </div>
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, justifyContent: "center" }}>
-              <a href="mailto:allo@ilestchouette.fr" style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", textDecoration: "none" }}>✉️ allo@ilestchouette.fr</a>
-              <Link href="/coursier" style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", textDecoration: "none" }}>Devenir coursier</Link>
-              <Link href="/commercant" style={{ fontSize: 13, color: "rgba(255,255,255,0.3)", textDecoration: "none" }}>Espace commerçant</Link>
-            </div>
+          <div className="iec-reveal flex-1 flex flex-col gap-3" style={{ transitionDelay: "0.1s" }}>
+            <Link href="/operateur" className="inline-flex items-center justify-center rounded-full bg-white text-slate-900 text-sm px-6 py-2.5 font-semibold shadow-md cursor-pointer hover:-translate-y-0.5 transition-transform" onClick={() => trackEvent("click_connexion_operateur_footer")}>
+              Connexion opérateur
+            </Link>
+            <Link href="/coursier" className="inline-flex items-center justify-center rounded-full border border-slate-600 text-sm px-6 py-2.5 font-semibold cursor-pointer hover:-translate-y-0.5 transition-transform" onClick={() => trackEvent("click_candidature_coursier_footer")}>
+              Envoyer ma candidature coursier
+            </Link>
           </div>
         </div>
       </section>
 
       {/* ══════════════════════ FOOTER ══════════════════════ */}
-      <footer style={{ background: "#040404", borderTop: "1px solid rgba(255,255,255,0.05)", padding: "20px 0" }}>
-        <div style={{ maxWidth: 1152, margin: "0 auto", padding: "0 24px", display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.22)", margin: 0 }}>
-            © {new Date().getFullYear()} Il est chouette — SASU · SIREN 942 069 949 · Nice, France
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-            {[
-              { href: "/mentions-legales", label: "Mentions légales" },
-              { href: "/coursier", label: "Espace coursier" },
-              { href: "/commercant", label: "Espace commerçant" },
-              { href: "/operateur", label: "Opérateur" },
-            ].map((l) => (
-              <Link key={l.href} href={l.href} style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", textDecoration: "none" }}>{l.label}</Link>
-            ))}
+      <footer className="bg-slate-950 text-slate-400 text-[11px]">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-2">
+          <p>© {new Date().getFullYear()} Il est chouette — SASU · SIREN 942 069 949 · Nice, France</p>
+          <div className="flex gap-4">
+            <Link href="/mentions-legales" className="hover:text-slate-200">Mentions légales</Link>
+            <Link href="/operateur" className="hover:text-slate-200">Espace opérateur</Link>
+            <Link href="/coursier" className="hover:text-slate-200">Espace coursier</Link>
+            <Link href="/commercant" className="hover:text-slate-200">Espace commerçant</Link>
           </div>
         </div>
       </footer>
@@ -360,127 +391,25 @@ export default function HomeClient() {
         /* ── Scroll reveal ── */
         .iec-reveal {
           opacity: 0;
-          transform: translateY(24px);
-          transition: opacity 0.65s ease, transform 0.65s ease;
+          transform: translateY(20px);
+          transition: opacity 0.6s ease, transform 0.6s ease;
         }
         .iec-reveal.iec-visible {
           opacity: 1;
           transform: translateY(0);
         }
-
-        /* ── Hero grid ── */
-        .iec-hero-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 60px;
-          align-items: center;
-        }
-
-        /* ── Services grid ── */
-        .iec-services-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 18px;
-        }
-
-        /* ── Service card ── */
+        /* ── Service card hover ── */
         .iec-service-card {
-          background: #F8FAFC;
-          border: 1px solid #E2E8F0;
-          border-radius: 20px;
-          padding: 28px 22px;
-          height: 100%;
-          transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s;
-          cursor: default;
+          transition: box-shadow 0.2s, transform 0.2s;
         }
         .iec-service-card:hover {
-          background: #FFF7ED;
-          border-color: rgba(249,115,22,0.3);
-          box-shadow: 0 12px 40px rgba(249,115,22,0.1);
-          transform: translateY(-4px);
+          box-shadow: 0 8px 24px rgba(249,115,22,0.15);
+          transform: translateY(-3px);
         }
-
-        /* ── Steps grid ── */
-        .iec-steps-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 40px;
-        }
-
-        /* ── Buttons ── */
-        .iec-btn-primary {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: linear-gradient(135deg, #F97316, #EA580C);
-          color: #fff;
-          border-radius: 100px;
-          padding: 14px 28px;
-          font-size: 14px;
-          font-weight: 700;
-          text-decoration: none;
-          box-shadow: 0 8px 30px rgba(249,115,22,0.35);
-          transition: transform 0.15s, box-shadow 0.15s;
-        }
-        .iec-btn-primary:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 40px rgba(249,115,22,0.45);
-        }
-        .iec-btn-ghost {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: rgba(255,255,255,0.07);
-          border: 1px solid rgba(255,255,255,0.14);
-          color: #fff;
-          border-radius: 100px;
-          padding: 14px 28px;
-          font-size: 14px;
-          font-weight: 700;
-          text-decoration: none;
-          backdrop-filter: blur(8px);
-          transition: background 0.15s;
-        }
-        .iec-btn-ghost:hover { background: rgba(255,255,255,0.12); }
-        .iec-btn-dark {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: #0A0A0A;
-          color: #fff;
-          border-radius: 100px;
-          padding: 14px 32px;
-          font-size: 14px;
-          font-weight: 700;
-          text-decoration: none;
-          border: 1px solid rgba(255,255,255,0.1);
-          transition: background 0.15s;
-        }
-        .iec-btn-dark:hover { background: #1a1a1a; }
-
-        /* ── Animations ── */
+        /* ── Hero float ── */
         @keyframes iec-float {
           0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-12px); }
-        }
-        @keyframes iec-bounce {
-          0%, 100% { transform: translateX(-50%) translateY(0); }
-          50% { transform: translateX(-50%) translateY(-8px); }
-        }
-        @keyframes iec-blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.35; }
-        }
-
-        /* ── Mobile ── */
-        @media (max-width: 768px) {
-          .iec-hero-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
-          .iec-services-grid { grid-template-columns: 1fr !important; }
-          .iec-steps-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
-        }
-        @media (min-width: 640px) and (max-width: 1024px) {
-          .iec-services-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          .iec-steps-grid { grid-template-columns: repeat(3, 1fr) !important; }
+          50% { transform: translateY(-10px); }
         }
       `}</style>
     </main>
