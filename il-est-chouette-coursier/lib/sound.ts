@@ -20,7 +20,7 @@ export async function playMissionSound(): Promise<void> {
     }
 
     const { sound } = await Audio.Sound.createAsync(
-      require('../assets/sounds/icq.mp3'),
+      require('../assets/sounds/owl.wav'),
       { isLooping: true, volume: 1.0 }
     );
 

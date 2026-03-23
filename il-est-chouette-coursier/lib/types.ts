@@ -8,6 +8,7 @@ export type AssignmentStatus =
 
 export type Order = {
   id: string;
+  service_type?: string | null;
   pickup_address: string;
   pickup_place_name?: string | null;
   dropoff_address: string;
@@ -16,10 +17,13 @@ export type Order = {
   price_total: number;
   express?: boolean;
   created_at?: string | null;
+  scheduled_at?: string | null;
   validation_code?: string | null;
   status?: string | null;
   wants_invoice?: boolean | null;
   extra_stops?: string[] | null;
+  client_email?: string | null;
+  payment_method?: string | null;
 };
 
 export type Assignment = {

@@ -46,7 +46,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 300, 200, 300],
       lightColor: '#1B5E9B',
-      sound: 'icq.mp3',
+      sound: 'owl.wav',
     });
   }
 

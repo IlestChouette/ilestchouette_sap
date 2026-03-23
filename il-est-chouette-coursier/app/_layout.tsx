@@ -49,10 +49,52 @@ export default function RootLayout() {
       playMissionSound();
     });
 
+    // ── Realtime : nouvelle commande "pending" (toutes sources) ──────────────
+    // Ceci couvre les commandes venant de l'app client, du site opérateur,
+    // ou de toute autre source — sans dépendre des push notifications.
+    const SERVICE_LABELS: Record<string, string> = {
+      supermarket: '🛒 Courses supermarché',
+      meds: '💊 Pharmacie',
+      food: '🍕 Livraison repas',
+      keys: '🗝️ Clés / documents',
+      shopping: '🛍️ Shopping',
+      express: '⚡ Express urgent',
+      voiturier: '🚗 Voiturier',
+      it: '💻 Soutien informatique',
+      assist: '🤝 Assistance',
+      bricolage: '🔧 Bricolage',
+    };
+
+    const realtimeChannel = supabase
+      .channel('new-orders-alert')
+      .on(
+        'postgres_changes' as any,
+        { event: 'INSERT', schema: 'public', table: 'orders', filter: 'status=eq.pending' },
+        async (payload: any) => {
+          const order = payload.new;
+          const serviceLabel = SERVICE_LABELS[order?.service_type] ?? order?.service_type ?? 'Nouvelle commande';
+
+          // Jouer le son chouette
+          playMissionSound();
+
+          // Notification locale visible même si une push n'a pas été envoyée
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: '🔔 Nouvelle commande disponible',
+              body: `${serviceLabel} — ${order?.dropoff_address ?? ''}`,
+              sound: true,
+            },
+            trigger: null, // immédiat
+          });
+        },
+      )
+      .subscribe();
+
     return () => {
       listener.subscription.unsubscribe();
       notifListener.current?.remove();
       responseListener.current?.remove();
+      supabase.removeChannel(realtimeChannel);
     };
   }, []);
 

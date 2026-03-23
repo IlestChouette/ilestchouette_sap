@@ -279,6 +279,7 @@ export default function CommanderScreen() {
       payment_method: o.payment_method,
       payment_status: stripeIntentId ? 'paid' : 'pending',
       stripe_payment_intent_id: stripeIntentId,
+      validation_code: String(Math.floor(100000 + Math.random() * 900000)),
     }));
 
     const { error } = await supabase.from('orders').insert(rows);

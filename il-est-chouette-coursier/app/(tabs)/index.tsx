@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import SignatureCanvas from 'react-native-signature-canvas';
 import { supabase } from '@/lib/supabase';
 import { stopMissionSound } from '@/lib/sound';
 import type { Assignment, AssignmentStatus } from '@/lib/types';
@@ -49,6 +50,12 @@ function formatDate(dateStr?: string | null) {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+const PAYMENT_LABELS: Record<string, string> = {
+  online_card: '💳 Payé en ligne',
+  on_site_cash: '💵 Espèces sur place',
+  on_site_card: '💳 Carte sur place',
+};
+
 /* ---- Carte d'une mission ---- */
 function MissionCard({
   assignment,
@@ -65,76 +72,135 @@ function MissionCard({
   const { label, color } = statusLabel(assignment.status);
   const mapsUrl = buildMapsUrl(assignment);
 
+  const isScheduled = !!order?.scheduled_at;
+
   return (
     <View style={styles.card}>
-      {/* Header carte */}
+
+      {/* ── Bandeau planifié ── */}
+      {isScheduled && (
+        <View style={styles.scheduledBanner}>
+          <Text style={styles.scheduledText}>
+            🗓️ Planifiée le {formatDate(order!.scheduled_at)}
+          </Text>
+        </View>
+      )}
+
+      {/* ── Header : service + statut ── */}
       <View style={styles.cardHeader}>
-        <Text style={styles.cardDate}>{formatDate(assignment.assigned_at)}</Text>
-        <View style={[styles.badge, { backgroundColor: color + '20' }]}>
+        <Text style={styles.serviceLabel}>
+          {SERVICE_LABELS[order?.service_type ?? ''] ?? order?.service_type ?? '—'}
+        </Text>
+        <View style={[styles.badge, { backgroundColor: color + '22' }]}>
           <Text style={[styles.badgeText, { color }]}>{label}</Text>
         </View>
       </View>
 
-      {/* Adresses */}
+      {/* ── Date d'assignation ── */}
+      <Text style={styles.cardDate}>Assignée le {formatDate(assignment.assigned_at)}</Text>
+
+      {/* ── Séparateur ── */}
+      <View style={styles.divider} />
+
+      {/* ── Adresses ── */}
       {order ? (
         <>
-          <View style={styles.addressRow}>
-            <View style={[styles.dot, { backgroundColor: BLUE }]} />
-            <Text style={styles.addressText} numberOfLines={2}>{order.pickup_place_name || order.pickup_address}</Text>
-          </View>
-          {order.extra_stops?.map((stop, i) => (
-            <View key={i} style={styles.addressRow}>
-              <View style={[styles.dot, { backgroundColor: ORANGE }]} />
-              <Text style={styles.addressText} numberOfLines={1}>{stop}</Text>
+          <View style={styles.addressBlock}>
+            <View style={styles.addressRow}>
+              <View style={[styles.dot, { backgroundColor: BLUE }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addressLabel}>Départ</Text>
+                <Text style={styles.addressText}>{order.pickup_place_name || order.pickup_address}</Text>
+              </View>
             </View>
-          ))}
-          <View style={styles.addressRow}>
-            <View style={[styles.dot, { backgroundColor: GREEN }]} />
-            <Text style={styles.addressText} numberOfLines={2}>{order.dropoff_address}</Text>
+
+            {order.extra_stops?.map((stop, i) => (
+              <View key={i} style={styles.addressRow}>
+                <View style={[styles.dot, { backgroundColor: ORANGE }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.addressLabel}>Étape {i + 1}</Text>
+                  <Text style={styles.addressText}>{stop}</Text>
+                </View>
+              </View>
+            ))}
+
+            <View style={styles.addressRow}>
+              <View style={[styles.dot, { backgroundColor: GREEN }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addressLabel}>Destination</Text>
+                <Text style={styles.addressText}>{order.dropoff_address}</Text>
+              </View>
+            </View>
           </View>
 
-          {/* Notes */}
-          {order.notes ? (
-            <Text style={styles.notes}>Note : {order.notes}</Text>
-          ) : null}
-          {order.access_info ? (
-            <Text style={styles.notes}>Accès : {order.access_info}</Text>
+          {/* ── Séparateur ── */}
+          <View style={styles.divider} />
+
+          {/* ── Infos client ── */}
+          <View style={styles.infoSection}>
+            {order.client_email ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoIcon}>📧</Text>
+                <Text style={styles.infoText}>{order.client_email}</Text>
+              </View>
+            ) : null}
+            {order.payment_method ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoIcon}>💰</Text>
+                <Text style={styles.infoText}>{PAYMENT_LABELS[order.payment_method] ?? order.payment_method}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* ── Notes / observations ── */}
+          {(order.notes || order.access_info) ? (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.notesSection}>
+                <Text style={styles.notesSectionTitle}>📝 Observations</Text>
+                {order.notes ? <Text style={styles.notesText}>{order.notes}</Text> : null}
+                {order.access_info ? (
+                  <View style={styles.accessRow}>
+                    <Text style={styles.accessIcon}>🔑</Text>
+                    <Text style={styles.notesText}>{order.access_info}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </>
           ) : null}
 
-          {/* Prix */}
+          {/* ── Prix ── */}
+          <View style={styles.divider} />
           <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Votre part</Text>
-            <Text style={styles.priceValue}>{(order.price_total * 0.65).toFixed(2)} €</Text>
+            <View>
+              <Text style={styles.priceLabel}>Votre part (65%)</Text>
+              <Text style={styles.priceValue}>{(order.price_total * 0.65).toFixed(2)} €</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.priceLabel}>Total client</Text>
+              <Text style={[styles.priceValue, { color: '#6B7280', fontSize: 15 }]}>{order.price_total.toFixed(2)} €</Text>
+            </View>
             {order.express && <View style={styles.expressBadge}><Text style={styles.expressText}>EXPRESS</Text></View>}
           </View>
         </>
       ) : (
-        <Text style={styles.notes}>Détails non disponibles</Text>
+        <Text style={styles.notesText}>Détails non disponibles</Text>
       )}
 
-      {/* Bouton navigation */}
+      {/* ── Bouton navigation ── */}
       {mapsUrl ? (
-        <Pressable
-          style={styles.mapsBtn}
-          onPress={() => Linking.openURL(mapsUrl)}
-        >
+        <Pressable style={styles.mapsBtn} onPress={() => Linking.openURL(mapsUrl)}>
           <Text style={styles.mapsBtnText}>📍 Ouvrir l'itinéraire</Text>
         </Pressable>
       ) : null}
 
-      {/* Actions selon statut */}
+      {/* ── Actions selon statut ── */}
       {assignment.status === 'assigned' && (
         <View style={styles.actions}>
-          <Pressable
-            style={[styles.actionBtn, styles.refuseBtn]}
-            onPress={() => onRefuse(assignment.id)}
-          >
+          <Pressable style={[styles.actionBtn, styles.refuseBtn]} onPress={() => onRefuse(assignment.id)}>
             <Text style={styles.refuseBtnText}>Refuser</Text>
           </Pressable>
-          <Pressable
-            style={[styles.actionBtn, styles.acceptBtn]}
-            onPress={() => onAccept(assignment.id)}
-          >
+          <Pressable style={[styles.actionBtn, styles.acceptBtn]} onPress={() => onAccept(assignment.id)}>
             <Text style={styles.acceptBtnText}>Accepter</Text>
           </Pressable>
         </View>
@@ -142,10 +208,10 @@ function MissionCard({
 
       {assignment.status === 'acceptee' && (
         <Pressable
-          style={[styles.actionBtn, styles.finishBtn, { marginTop: 12 }]}
+          style={[styles.actionBtn, styles.finishBtn, { marginTop: 14 }]}
           onPress={() => onFinish(assignment.id)}
         >
-          <Text style={styles.acceptBtnText}>Terminer la mission</Text>
+          <Text style={styles.acceptBtnText}>✅ Terminer la mission</Text>
         </Pressable>
       )}
     </View>
@@ -154,6 +220,8 @@ function MissionCard({
 
 /* ---- Modale de clôture ---- */
 const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL ?? 'https://ilestchouette-sap.vercel.app';
+
+type FinishStep = 'form' | 'signature';
 
 function FinishModal({
   assignmentId,
@@ -168,43 +236,72 @@ function FinishModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const [step, setStep] = useState<FinishStep>('form');
   const [code, setCode] = useState('');
   const [payment, setPayment] = useState<'cash' | 'card' | 'to_pay' | ''>('');
   const [wantsInvoice, setWantsInvoice] = useState<'yes' | 'no' | ''>('');
+  const [, setSignature] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const sigRef = useRef<any>(null);
 
-  async function handleFinish() {
+  function handleValidateForm() {
     if (validationCode && code !== validationCode) {
       setError('Code de validation incorrect.');
       return;
     }
-    if (!payment) {
-      setError('Choisis le mode de paiement.');
-      return;
-    }
-    if (wantsInvoice === '') {
-      setError('Indique si le client souhaite une facture.');
-      return;
-    }
+    if (!payment) { setError('Choisis le mode de paiement.'); return; }
+    if (wantsInvoice === '') { setError('Indique si le client souhaite une facture.'); return; }
+    setError('');
+    setStep('signature');
+  }
+
+  async function handleFinish(sig: string) {
     setLoading(true);
     const wantsInvoiceBool = wantsInvoice === 'yes';
 
-    // 1. Mettre à jour l'assignment
+    // 1. Uploader la signature dans Supabase Storage
+    let signatureUrl: string | null = null;
+    try {
+      const base64Data = sig.replace(/^data:image\/png;base64,/, '');
+      const byteCharacters = atob(base64Data);
+      const byteArray = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], { type: 'image/png' });
+      const storagePath = `signatures/${assignmentId}.png`;
+      const { error: uploadErr } = await supabase.storage
+        .from('signatures')
+        .upload(storagePath, blob, { upsert: true, contentType: 'image/png' });
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from('signatures').getPublicUrl(storagePath);
+        signatureUrl = urlData.publicUrl;
+      }
+    } catch (e) {
+      console.warn('Erreur upload signature:', e);
+    }
+
+    // 2. Mettre à jour l'assignment
     const { error: err1 } = await supabase
       .from('assignments')
-      .update({ status: 'terminee', payment_method: payment, validated_with_code: !!code })
+      .update({
+        status: 'terminee',
+        payment_method: payment,
+        validated_with_code: !!code,
+        signature_url: signatureUrl,
+      })
       .eq('id', assignmentId);
 
     if (err1) { setError('Erreur lors de la clôture.'); setLoading(false); return; }
 
-    // 2. Mettre à jour la commande (toujours — facture générée systématiquement)
+    // 3. Mettre à jour la commande
     await supabase
       .from('orders')
       .update({ status: 'terminee', wants_invoice: wantsInvoiceBool })
       .eq('id', orderId);
 
-    // 3. Enregistrer l'événement
+    // 4. Enregistrer l'événement
     const { data: session } = await supabase.auth.getSession();
     await supabase.from('events').insert({
       type: 'delivery_completed',
@@ -217,12 +314,9 @@ function FinishModal({
 
     setLoading(false);
 
-    // 4. Si le client veut la facture → ouvrir dans le navigateur
     if (wantsInvoiceBool) {
-      const url = `${WEB_URL}/operateur/facture/${orderId}`;
-      Linking.openURL(url);
+      Linking.openURL(`${WEB_URL}/operateur/facture/${orderId}`);
     }
-
     onDone();
   }
 
@@ -232,81 +326,122 @@ function FinishModal({
     { key: 'to_pay', label: '🔄 À facturer' },
   ];
 
-  return (
-    <View style={styles.overlay}>
-      <View style={styles.modal}>
-        <Text style={styles.modalTitle}>Terminer la mission</Text>
+  /* ── Étape 1 : Formulaire ── */
+  if (step === 'form') {
+    return (
+      <View style={styles.overlay}>
+        <View style={styles.modal}>
+          <Text style={styles.modalTitle}>Terminer la mission</Text>
 
-        {validationCode ? (
-          <>
-            <Text style={styles.label}>Code de validation client</Text>
-            <TextInput
-              style={styles.input}
-              value={code}
-              onChangeText={setCode}
-              placeholder="Code à 6 chiffres"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-              maxLength={6}
-            />
-          </>
-        ) : null}
+          {validationCode ? (
+            <>
+              <Text style={styles.label}>Code de validation client</Text>
+              <TextInput
+                style={styles.input}
+                value={code}
+                onChangeText={setCode}
+                placeholder="Code à 6 chiffres"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                maxLength={6}
+              />
+            </>
+          ) : null}
 
-        <Text style={styles.label}>Mode de paiement</Text>
-        <View style={styles.paymentRow}>
-          {PAYMENTS.map((p) => (
+          <Text style={styles.label}>Mode de paiement</Text>
+          <View style={styles.paymentRow}>
+            {PAYMENTS.map((p) => (
+              <Pressable
+                key={p.key}
+                style={[styles.paymentBtn, payment === p.key && styles.paymentBtnActive]}
+                onPress={() => setPayment(p.key)}
+              >
+                <Text style={[styles.paymentBtnText, payment === p.key && styles.paymentBtnTextActive]}>
+                  {p.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Le client souhaite une facture ?</Text>
+          <View style={styles.paymentRow}>
             <Pressable
-              key={p.key}
-              style={[styles.paymentBtn, payment === p.key && styles.paymentBtnActive]}
-              onPress={() => setPayment(p.key)}
+              style={[styles.paymentBtn, wantsInvoice === 'yes' && styles.paymentBtnActive]}
+              onPress={() => setWantsInvoice('yes')}
             >
-              <Text style={[styles.paymentBtnText, payment === p.key && styles.paymentBtnTextActive]}>
-                {p.label}
+              <Text style={[styles.paymentBtnText, wantsInvoice === 'yes' && styles.paymentBtnTextActive]}>
+                ✅ Oui
               </Text>
             </Pressable>
-          ))}
+            <Pressable
+              style={[styles.paymentBtn, wantsInvoice === 'no' && styles.paymentBtnActive]}
+              onPress={() => setWantsInvoice('no')}
+            >
+              <Text style={[styles.paymentBtnText, wantsInvoice === 'no' && styles.paymentBtnTextActive]}>
+                ❌ Non
+              </Text>
+            </Pressable>
+          </View>
+
+          {wantsInvoice === 'yes' && (
+            <Text style={styles.invoiceHint}>La facture s'ouvrira dans le navigateur après confirmation.</Text>
+          )}
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <View style={styles.actions}>
+            <Pressable style={[styles.actionBtn, styles.refuseBtn]} onPress={onClose}>
+              <Text style={styles.refuseBtnText}>Annuler</Text>
+            </Pressable>
+            <Pressable style={[styles.actionBtn, styles.acceptBtn]} onPress={handleValidateForm}>
+              <Text style={styles.acceptBtnText}>Suivant →</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  /* ── Étape 2 : Signature ── */
+  return (
+    <View style={styles.overlay}>
+      <View style={[styles.modal, { paddingBottom: 8 }]}>
+        <Text style={styles.modalTitle}>✍️ Signature du client</Text>
+        <Text style={styles.signatureHint}>Demandez au client de signer ci-dessous pour confirmer la réception</Text>
+
+        <View style={styles.signatureBox}>
+          <SignatureCanvas
+            ref={sigRef}
+            onOK={(sig) => {
+              setSignature(sig);
+              handleFinish(sig);
+            }}
+            onEmpty={() => setError('Veuillez obtenir la signature du client.')}
+            descriptionText=""
+            clearText="Effacer"
+            confirmText={loading ? 'Enregistrement…' : 'Confirmer'}
+            webStyle={`
+              .m-signature-pad { box-shadow: none; border: none; }
+              .m-signature-pad--body { border: none; }
+              .m-signature-pad--footer { background: #fff; padding: 8px; }
+              .button.clear { background: #FEE2E2; color: #DC2626; border-radius: 8px; font-weight: 700; }
+              .button.save { background: #16A34A; color: #fff; border-radius: 8px; font-weight: 700; }
+            `}
+          />
         </View>
 
-        <Text style={styles.label}>Le client souhaite une facture ?</Text>
-        <View style={styles.paymentRow}>
-          <Pressable
-            style={[styles.paymentBtn, wantsInvoice === 'yes' && styles.paymentBtnActive]}
-            onPress={() => setWantsInvoice('yes')}
-          >
-            <Text style={[styles.paymentBtnText, wantsInvoice === 'yes' && styles.paymentBtnTextActive]}>
-              ✅ Oui — afficher
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.paymentBtn, wantsInvoice === 'no' && styles.paymentBtnActive]}
-            onPress={() => setWantsInvoice('no')}
-          >
-            <Text style={[styles.paymentBtnText, wantsInvoice === 'no' && styles.paymentBtnTextActive]}>
-              ❌ Non
-            </Text>
-          </Pressable>
-        </View>
+        {error ? <Text style={[styles.error, { marginBottom: 8 }]}>{error}</Text> : null}
 
-        {wantsInvoice === 'yes' && (
-          <Text style={styles.invoiceHint}>
-            La facture s'ouvrira dans le navigateur après confirmation.
-          </Text>
+        <Pressable style={[styles.actionBtn, styles.refuseBtn, { marginTop: 4 }]} onPress={() => { setStep('form'); setError(''); }}>
+          <Text style={styles.refuseBtnText}>← Retour</Text>
+        </Pressable>
+
+        {loading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={GREEN} />
+            <Text style={{ color: '#fff', marginTop: 8, fontWeight: '700' }}>Enregistrement…</Text>
+          </View>
         )}
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <View style={styles.actions}>
-          <Pressable style={[styles.actionBtn, styles.refuseBtn]} onPress={onClose}>
-            <Text style={styles.refuseBtnText}>Annuler</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.actionBtn, styles.acceptBtn]}
-            onPress={handleFinish}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.acceptBtnText}>Confirmer</Text>}
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -361,7 +496,7 @@ export default function DashboardScreen() {
     // Mes missions assignées
     const { data: myAssignments } = await supabase
       .from('assignments')
-      .select('*, order:orders(*)')
+      .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,extra_stops,client_email,payment_method)')
       .eq('courier_email', userEmail)
       .in('status', ['assigned', 'acceptee'])
       .order('assigned_at', { ascending: false });
@@ -566,30 +701,62 @@ const styles = StyleSheet.create({
   // Carte
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  cardDate: { fontSize: 12, color: '#6B7280' },
-  badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
+
+  // Bandeau planifié
+  scheduledBanner: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  scheduledText: { fontSize: 13, fontWeight: '700', color: '#92400E' },
+
+  // Header service + statut
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  serviceLabel: { fontSize: 17, fontWeight: '800', color: '#1F2937', flex: 1, marginRight: 8 },
+  cardDate: { fontSize: 12, color: '#9CA3AF', marginBottom: 12 },
+  badge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontSize: 12, fontWeight: '700' },
+
+  // Séparateur
+  divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
 
   // Adresses
-  addressRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6, gap: 8 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
-  addressText: { flex: 1, fontSize: 14, color: '#1F2937' },
-  notes: { fontSize: 13, color: '#6B7280', fontStyle: 'italic', marginTop: 4 },
+  addressBlock: { gap: 10 },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  dot: { width: 11, height: 11, borderRadius: 6, marginTop: 5 },
+  addressLabel: { fontSize: 11, fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 1 },
+  addressText: { fontSize: 15, color: '#1F2937', fontWeight: '500', lineHeight: 20 },
+
+  // Infos client
+  infoSection: { gap: 6 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoIcon: { fontSize: 15, width: 22 },
+  infoText: { fontSize: 14, color: '#374151', flex: 1 },
+
+  // Notes
+  notesSection: { gap: 6 },
+  notesSectionTitle: { fontSize: 13, fontWeight: '700', color: '#374151', marginBottom: 2 },
+  notesText: { fontSize: 14, color: '#4B5563', lineHeight: 20 },
+  accessRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  accessIcon: { fontSize: 14 },
 
   // Prix
-  priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 },
-  priceLabel: { fontSize: 13, color: '#6B7280' },
-  priceValue: { fontSize: 18, fontWeight: '700', color: GREEN, flex: 1 },
-  expressBadge: { backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+  priceRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  priceLabel: { fontSize: 12, color: '#9CA3AF', fontWeight: '600', marginBottom: 2 },
+  priceValue: { fontSize: 22, fontWeight: '800', color: GREEN },
+  expressBadge: { backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   expressText: { fontSize: 11, fontWeight: '700', color: '#92400E' },
 
   // Navigation
@@ -632,6 +799,9 @@ const styles = StyleSheet.create({
   paymentBtnText: { fontSize: 12, fontWeight: '600', color: '#374151' },
   paymentBtnTextActive: { color: '#fff' },
   invoiceHint: { fontSize: 12, color: '#1B5E9B', fontStyle: 'italic', marginTop: 6, textAlign: 'center' },
+  signatureHint: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 12 },
+  signatureBox: { height: 260, borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 8 },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', borderRadius: 20 },
   sectionHeader: { paddingHorizontal: 4, paddingTop: 8, paddingBottom: 4 },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#374151' },
   availableCard: { backgroundColor: '#FFF7ED', borderRadius: 14, padding: 14, borderWidth: 2, borderColor: '#F97316', gap: 6, marginBottom: 4 },

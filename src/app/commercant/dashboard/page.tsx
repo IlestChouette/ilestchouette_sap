@@ -18,6 +18,26 @@ type MerchantOrder = {
   order: { dropoff_address: string; notes: string; price_total: number; client_email: string };
 };
 
+function playOrderAlert() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // Deux "ding" rapides — son de caisse enregistreuse / notification
+    [0, 0.20].forEach((delay) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+      gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.45);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.45);
+    });
+  } catch (_) { /* navigateur sans AudioContext */ }
+}
+
 export default function MerchantDashboard() {
   const [session, setSession] = useState<any>(null);
   const [merchant, setMerchant] = useState<Merchant | null>(null);
@@ -44,6 +64,39 @@ export default function MerchantDashboard() {
       else setLoading(false);
     });
   }, []);
+
+  // Realtime : nouvelle commande arrivante
+  useEffect(() => {
+    if (!merchant?.id) return;
+
+    const channel = supabase
+      .channel(`merchant-orders-${merchant.id}`)
+      .on(
+        "postgres_changes" as any,
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "merchant_orders",
+          filter: `merchant_id=eq.${merchant.id}`,
+        },
+        async (payload: any) => {
+          // Récupérer les détails complets de la commande
+          const { data } = await supabase
+            .from("merchant_orders")
+            .select("*, order:orders(dropoff_address,notes,price_total,client_email)")
+            .eq("id", payload.new.id)
+            .single();
+
+          if (data) {
+            setOrders((prev) => [data as MerchantOrder, ...prev]);
+            playOrderAlert();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [merchant?.id]);
 
   async function loadMerchantData(userId: string) {
     const [{ data: m }, { data: p }, { data: o }] = await Promise.all([
