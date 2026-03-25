@@ -62,3 +62,17 @@ body {
   display: inline-block;
   animation: marquee 20s linear infinite;
 }
+/* === Impression PDF comptabilité === */
+@media print {
+  body > * { display: none !important; }
+  #compta-print,
+  #compta-print * { display: revert !important; }
+  #compta-print {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+  }
+}

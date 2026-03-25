@@ -213,6 +213,24 @@ export default function AdminPage() {
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
 
+  /* ─── Comptabilité ─── */
+  const [compta, setCompta] = useState<{ recetes: Record<string, string>[]; depenses: Record<string, string>[] } | null>(null);
+  const [comptaTab, setComptaTab] = useState<"resume" | "recetes" | "depenses">("resume");
+  const [comptaLoading, setComptaLoading] = useState(false);
+  const [comptaYear, setComptaYear] = useState(new Date().getFullYear().toString());
+
+  async function loadCompta() {
+    setComptaLoading(true);
+    try {
+      const res = await fetch("/api/sheets");
+      const data = await res.json();
+      setCompta(data);
+    } catch (e) {
+      console.error(e);
+    }
+    setComptaLoading(false);
+  }
+
   /* ─── Filters ─── */
   const [filterMonth, setFilterMonth] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -1077,6 +1095,210 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+          </Section>
+
+          {/* ── Comptabilité ── */}
+          <Section title="Comptabilité">
+            {(() => {
+              // Données plateforme pour l'année sélectionnée
+              const platformRevenue = orders
+                .filter((o) => o.status === "terminee" && o.created_at.startsWith(comptaYear))
+                .reduce((s, o) => s + (o.price_total ?? 0), 0);
+
+              const manualRevenue = (compta?.recetes ?? [])
+                .filter((r) => (r["Date"] ?? "").includes(comptaYear.slice(2)))
+                .reduce((s, r) => s + (parseFloat(r["Montant"] ?? "0") || 0), 0);
+
+              const totalRevenue = platformRevenue + manualRevenue;
+
+              const totalDepenses = (compta?.depenses ?? [])
+                .filter((d) => (d["Date"] ?? "").includes(comptaYear.slice(2)))
+                .reduce((s, d) => {
+                  const raw = (d["Montant TTC (€)"] ?? "").replace(/[€\s]/g, "").replace(",", ".");
+                  return s + (parseFloat(raw) || 0);
+                }, 0);
+
+              const benefice = totalRevenue - totalDepenses;
+
+              return (
+                <div>
+                  {/* Barre d'outils */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <div className="flex gap-2">
+                      {["2024", "2025", "2026"].map((y) => (
+                        <button key={y} onClick={() => setComptaYear(y)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${comptaYear === y ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                          {y}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={loadCompta}
+                        className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-semibold text-gray-700 transition">
+                        {comptaLoading ? "Chargement..." : "🔄 Actualiser"}
+                      </button>
+                      <button onClick={() => window.print()}
+                        className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition">
+                        📄 Télécharger PDF
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Résumé chiffres */}
+                  <div id="compta-print" className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      <div className="bg-green-50 rounded-2xl p-4 text-center">
+                        <p className="text-xs text-green-600 font-semibold uppercase mb-1">Recettes plateforme</p>
+                        <p className="text-2xl font-bold text-green-700">{fmtEuro(platformRevenue)}</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-2xl p-4 text-center">
+                        <p className="text-xs text-blue-600 font-semibold uppercase mb-1">Recettes manuelles</p>
+                        <p className="text-2xl font-bold text-blue-700">{fmtEuro(manualRevenue)}</p>
+                      </div>
+                      <div className="bg-red-50 rounded-2xl p-4 text-center">
+                        <p className="text-xs text-red-600 font-semibold uppercase mb-1">Dépenses</p>
+                        <p className="text-2xl font-bold text-red-700">{fmtEuro(totalDepenses)}</p>
+                      </div>
+                      <div className={`rounded-2xl p-4 text-center ${benefice >= 0 ? "bg-orange-50" : "bg-red-100"}`}>
+                        <p className={`text-xs font-semibold uppercase mb-1 ${benefice >= 0 ? "text-orange-600" : "text-red-600"}`}>Bénéfice net</p>
+                        <p className={`text-2xl font-bold ${benefice >= 0 ? "text-orange-700" : "text-red-700"}`}>{fmtEuro(benefice)}</p>
+                      </div>
+                    </div>
+
+                    {/* Onglets */}
+                    <div className="flex gap-2 mb-4">
+                      {(["resume", "recetes", "depenses"] as const).map((t) => (
+                        <button key={t} onClick={() => setComptaTab(t)}
+                          className={`px-4 py-2 rounded-xl text-sm font-semibold transition ${comptaTab === t ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                          {t === "resume" ? "Résumé" : t === "recetes" ? "Recettes manuelles" : "Dépenses"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Résumé par catégorie */}
+                    {comptaTab === "resume" && (
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div>
+                          <h3 className="font-semibold text-gray-800 mb-3">Recettes manuelles par service</h3>
+                          {compta == null ? (
+                            <button onClick={loadCompta} className="text-sm text-orange-500 underline">Charger les données Google Sheet</button>
+                          ) : (
+                            <div className="space-y-2">
+                              {Object.entries(
+                                (compta.recetes ?? [])
+                                  .filter((r) => (r["Date"] ?? "").includes(comptaYear.slice(2)))
+                                  .reduce((acc, r) => {
+                                    const cat = r["Service réalisé"] ?? "Autre";
+                                    acc[cat] = (acc[cat] ?? 0) + (parseFloat(r["Montant"] ?? "0") || 0);
+                                    return acc;
+                                  }, {} as Record<string, number>)
+                              ).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
+                                <div key={cat} className="flex justify-between items-center py-2 border-b border-gray-50">
+                                  <span className="text-sm text-gray-700">{cat}</span>
+                                  <span className="text-sm font-semibold text-gray-900">{fmtEuro(amt)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800 mb-3">Dépenses par catégorie</h3>
+                          {compta == null ? (
+                            <button onClick={loadCompta} className="text-sm text-orange-500 underline">Charger les données Google Sheet</button>
+                          ) : (
+                            <div className="space-y-2">
+                              {Object.entries(
+                                (compta.depenses ?? [])
+                                  .filter((d) => (d["Date"] ?? "").includes(comptaYear.slice(2)))
+                                  .reduce((acc, d) => {
+                                    const cat = d["Description / Nature de l'achat"] ?? "Autre";
+                                    const raw = (d["Montant TTC (€)"] ?? "").replace(/[€\s]/g, "").replace(",", ".");
+                                    acc[cat] = (acc[cat] ?? 0) + (parseFloat(raw) || 0);
+                                    return acc;
+                                  }, {} as Record<string, number>)
+                              ).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
+                                <div key={cat} className="flex justify-between items-center py-2 border-b border-gray-50">
+                                  <span className="text-sm text-gray-700">{cat}</span>
+                                  <span className="text-sm font-semibold text-red-600">{fmtEuro(amt)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Table recettes manuelles */}
+                    {comptaTab === "recetes" && (
+                      <div className="overflow-x-auto">
+                        {compta == null ? (
+                          <button onClick={loadCompta} className="text-sm text-orange-500 underline">Charger les données Google Sheet</button>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase">
+                                <th className="pb-3 pr-4">Date</th>
+                                <th className="pb-3 pr-4">Client</th>
+                                <th className="pb-3 pr-4">Service</th>
+                                <th className="pb-3 pr-4">Paiement</th>
+                                <th className="pb-3 pr-4">Facture</th>
+                                <th className="pb-3 text-right">Montant</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(compta.recetes ?? []).filter((r) => (r["Date"] ?? "").includes(comptaYear.slice(2))).map((r, i) => (
+                                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                                  <td className="py-2 pr-4 text-gray-500">{r["Date"]}</td>
+                                  <td className="py-2 pr-4 text-gray-800">{r["Client"]}</td>
+                                  <td className="py-2 pr-4 text-gray-600">{r["Service réalisé"]}</td>
+                                  <td className="py-2 pr-4 text-gray-600">{r["Mode de paiement"]}</td>
+                                  <td className="py-2 pr-4 text-gray-500 text-xs">{r["N° de facture "]}</td>
+                                  <td className="py-2 text-right font-semibold text-green-700">{fmtEuro(parseFloat(r["Montant"] ?? "0") || 0)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Table dépenses */}
+                    {comptaTab === "depenses" && (
+                      <div className="overflow-x-auto">
+                        {compta == null ? (
+                          <button onClick={loadCompta} className="text-sm text-orange-500 underline">Charger les données Google Sheet</button>
+                        ) : (
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase">
+                                <th className="pb-3 pr-4">Date</th>
+                                <th className="pb-3 pr-4">Fournisseur</th>
+                                <th className="pb-3 pr-4">Nature</th>
+                                <th className="pb-3 pr-4">TVA</th>
+                                <th className="pb-3 pr-4">HT</th>
+                                <th className="pb-3 text-right">TTC</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(compta.depenses ?? []).filter((d) => (d["Date"] ?? "").includes(comptaYear.slice(2))).map((d, i) => (
+                                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                                  <td className="py-2 pr-4 text-gray-500">{d["Date"]}</td>
+                                  <td className="py-2 pr-4 text-gray-800">{d["Fournisseur"]}</td>
+                                  <td className="py-2 pr-4 text-gray-600">{d["Description / Nature de l'achat"]}</td>
+                                  <td className="py-2 pr-4 text-gray-500">{d["Column 6"]}</td>
+                                  <td className="py-2 pr-4 text-gray-500">{d["Column 7"]}</td>
+                                  <td className="py-2 text-right font-semibold text-red-600">{d["Montant TTC (€)"]}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </Section>
 
           <p className="text-center text-xs text-gray-300 pb-6">
