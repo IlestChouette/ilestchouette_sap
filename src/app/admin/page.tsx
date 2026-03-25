@@ -209,6 +209,10 @@ export default function AdminPage() {
   /* ─── Client modal ─── */
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
 
+  /* ─── Cancel modal ─── */
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+
   /* ─── Filters ─── */
   const [filterMonth, setFilterMonth] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -247,6 +251,16 @@ export default function AdminPage() {
 
     return () => { supabase.removeChannel(ch); };
   }, [authed]);
+
+  /* ─── Cancel order ─── */
+  async function confirmCancelOrder() {
+    if (!cancelOrderId) return;
+    const reason = cancelReason.trim() || "admin";
+    await supabase.from("orders").update({ status: "annulee", cancellation_reason: reason }).eq("id", cancelOrderId);
+    setOrders((prev) => prev.map((o) => o.id === cancelOrderId ? { ...o, status: "annulee" } : o));
+    setCancelOrderId(null);
+    setCancelReason("");
+  }
 
   /* ─── Computed ─── */
   const currentMonth = nowMonth();
@@ -801,7 +815,8 @@ export default function AdminPage() {
                     <th className="pb-3 pr-4">Dropoff</th>
                     <th className="pb-3 pr-4">Coursier</th>
                     <th className="pb-3 pr-4">Statut</th>
-                    <th className="pb-3 text-right">Prix</th>
+                    <th className="pb-3 pr-4 text-right">Prix</th>
+                    <th className="pb-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -841,15 +856,25 @@ export default function AdminPage() {
                             {statusConf}
                           </span>
                         </td>
-                        <td className="py-3 text-right font-semibold text-gray-900">
+                        <td className="py-3 pr-4 text-right font-semibold text-gray-900">
                           {fmtEuro(o.price_total)}
+                        </td>
+                        <td className="py-3 text-right">
+                          {o.status !== "annulee" && o.status !== "livree" && (
+                            <button
+                              onClick={() => { setCancelOrderId(o.id); setCancelReason(""); }}
+                              className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 transition"
+                            >
+                              Annuler
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
                   })}
                   {filteredOrders.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-10 text-center text-gray-400">
+                      <td colSpan={8} className="py-10 text-center text-gray-400">
                         Aucune commande trouvée.
                       </td>
                     </tr>
@@ -1057,6 +1082,60 @@ export default function AdminPage() {
           <p className="text-center text-xs text-gray-300 pb-6">
             Il est Chouette · Dashboard Admin · Données en temps réel
           </p>
+
+          {/* ── Modal annulation ── */}
+          {cancelOrderId && (
+            <div
+              className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+              onClick={() => setCancelOrderId(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 className="text-lg font-bold text-gray-900 mb-1">Annuler la commande</h2>
+                <p className="text-sm text-gray-500 mb-5">Choisissez ou saisissez une raison d&apos;annulation.</p>
+
+                {/* Raisons rapides */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["Aucun coursier disponible", "Client injoignable", "Commande en double", "Problème de paiement", "Demande du client", "Test"].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setCancelReason(r)}
+                      className={`text-xs px-3 py-1.5 rounded-full border transition ${cancelReason === r ? "bg-red-500 text-white border-red-500" : "border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-500"}`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Champ libre */}
+                <input
+                  type="text"
+                  placeholder="Autre raison..."
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-red-300 mb-5"
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setCancelOrderId(null)}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition"
+                  >
+                    Retour
+                  </button>
+                  <button
+                    onClick={confirmCancelOrder}
+                    disabled={!cancelReason.trim()}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Confirmer l&apos;annulation
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Modal client ── */}
           {selectedClient && (
