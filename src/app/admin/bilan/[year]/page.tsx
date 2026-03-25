@@ -44,13 +44,19 @@ export default async function BilanPage({ params }: { params: Promise<{ year: st
     .lte("created_at", `${year}-12-31`);
 
   // Google Sheets
-  const [recetesRes, depensesRes] = await Promise.all([
-    fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=RECETES`, { cache: "no-store" }),
-    fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=DEPENSES`, { cache: "no-store" }),
-  ]);
-  const [recetesCsv, depensesCsv] = await Promise.all([recetesRes.text(), depensesRes.text()]);
-  const allRecetes = parseCsv(recetesCsv).filter((r) => (r["Date"] ?? "").includes(yearShort));
-  const allDepenses = parseCsv(depensesCsv).filter((d) => (d["Date"] ?? "").includes(yearShort));
+  let allRecetes: Record<string, string>[] = [];
+  let allDepenses: Record<string, string>[] = [];
+  try {
+    const [recetesRes, depensesRes] = await Promise.all([
+      fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=RECETES`, { cache: "no-store" }),
+      fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=DEPENSES`, { cache: "no-store" }),
+    ]);
+    const [recetesCsv, depensesCsv] = await Promise.all([recetesRes.text(), depensesRes.text()]);
+    allRecetes = parseCsv(recetesCsv).filter((r) => (r["Date"] ?? "").includes(yearShort));
+    allDepenses = parseCsv(depensesCsv).filter((d) => (d["Date"] ?? "").includes(yearShort));
+  } catch (e) {
+    console.error("Google Sheets fetch error:", e);
+  }
 
   // Calculs
   const platformRevenue = (orders ?? []).reduce((s, o) => s + (o.price_total ?? 0), 0);
