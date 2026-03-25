@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -103,7 +104,12 @@ export default function SuiviScreen() {
       .limit(1);
 
     if (cancelled && cancelled.length > 0) {
-      setCancelledOrder(cancelled[0] as Order);
+      // Vérifier si ce modal a déjà été vu
+      const seen = await AsyncStorage.getItem('seen_cancellations');
+      const seenIds: string[] = seen ? JSON.parse(seen) : [];
+      if (!seenIds.includes(cancelled[0].id)) {
+        setCancelledOrder(cancelled[0] as Order);
+      }
     }
 
     setLoading(false);
@@ -157,7 +163,14 @@ export default function SuiviScreen() {
 
             <Pressable
               style={[styles.modalBtn, styles.modalBtnSecondary]}
-              onPress={() => setCancelledOrder(null)}
+              onPress={async () => {
+                if (cancelledOrder) {
+                  const seen = await AsyncStorage.getItem('seen_cancellations');
+                  const seenIds: string[] = seen ? JSON.parse(seen) : [];
+                  await AsyncStorage.setItem('seen_cancellations', JSON.stringify([...seenIds, cancelledOrder.id]));
+                }
+                setCancelledOrder(null);
+              }}
             >
               <Text style={styles.modalBtnSecondaryText}>
                 {cancelledOrder?.stripe_payment_intent_id ? '✅ Remboursement compris' : 'Annuler'}
