@@ -15,7 +15,10 @@ type Merchant = {
 type Product = { id: string; name: string; description: string; price: number; category: string; available: boolean; image_url?: string };
 type MerchantOrder = {
   id: string; status: string; created_at: string;
-  order: { dropoff_address: string; notes: string; price_total: number; client_email: string };
+  order: {
+    dropoff_address: string; notes: string; price_total: number;
+    client_email: string; client_name?: string; client_phone?: string;
+  };
 };
 
 function playOrderAlert() {
@@ -83,7 +86,7 @@ export default function MerchantDashboard() {
           // Récupérer les détails complets de la commande
           const { data } = await supabase
             .from("merchant_orders")
-            .select("*, order:orders(dropoff_address,notes,price_total,client_email)")
+            .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone)")
             .eq("id", payload.new.id)
             .single();
 
@@ -104,7 +107,7 @@ export default function MerchantDashboard() {
       supabase.from("merchant_products").select("*").eq("merchant_id",
         (await supabase.from("merchants").select("id").eq("user_id", userId).maybeSingle()).data?.id ?? ""
       ).order("category"),
-      supabase.from("merchant_orders").select("*, order:orders(dropoff_address,notes,price_total,client_email)")
+      supabase.from("merchant_orders").select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone)")
         .eq("merchant_id",
           (await supabase.from("merchants").select("id").eq("user_id", userId).maybeSingle()).data?.id ?? ""
         ).order("created_at", { ascending: false }).limit(50),
@@ -126,7 +129,7 @@ export default function MerchantDashboard() {
     setLoggingIn(false);
   }
 
-  async function handleOrderAction(orderId: string, status: "accepted" | "rejected") {
+  async function handleOrderAction(orderId: string, status: string) {
     await supabase.from("merchant_orders").update({ status }).eq("id", orderId);
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
   }
@@ -219,8 +222,9 @@ export default function MerchantDashboard() {
     </div>
   );
 
-  const pendingOrders = orders.filter((o) => o.status === "pending");
-  const pastOrders = orders.filter((o) => o.status !== "pending");
+  const newOrders = orders.filter((o) => o.status === "pending");
+  const activeOrders = orders.filter((o) => ["accepted", "preparing", "ready"].includes(o.status));
+  const pastOrders = orders.filter((o) => ["rejected", "delivered"].includes(o.status));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -231,9 +235,9 @@ export default function MerchantDashboard() {
           <p className="text-orange-100 text-sm">{merchant.category}</p>
         </div>
         <div className="flex items-center gap-3">
-          {pendingOrders.length > 0 && (
-            <span className="bg-white text-orange-500 font-bold text-sm px-3 py-1 rounded-full">
-              {pendingOrders.length} nouvelle(s)
+          {newOrders.length > 0 && (
+            <span className="bg-white text-orange-500 font-bold text-sm px-3 py-1 rounded-full animate-pulse">
+              🔔 {newOrders.length} nouvelle(s)
             </span>
           )}
           <button onClick={() => supabase.auth.signOut().then(() => setSession(null))}
@@ -247,8 +251,8 @@ export default function MerchantDashboard() {
           <button key={t} onClick={() => setTab(t)}
             className={`py-4 text-sm font-semibold border-b-2 transition ${tab === t ? "border-orange-500 text-orange-500" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
             {label}
-            {t === "orders" && pendingOrders.length > 0 && (
-              <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">{pendingOrders.length}</span>
+            {t === "orders" && (newOrders.length + activeOrders.length) > 0 && (
+              <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">{newOrders.length + activeOrders.length}</span>
             )}
           </button>
         ))}
@@ -258,46 +262,101 @@ export default function MerchantDashboard() {
 
         {/* COMMANDES */}
         {tab === "orders" && (
-          <div className="space-y-4">
-            {pendingOrders.length === 0 && pastOrders.length === 0 && (
+          <div className="space-y-6">
+            {newOrders.length === 0 && activeOrders.length === 0 && pastOrders.length === 0 && (
               <div className="text-center py-16 text-gray-400">
                 <div className="text-5xl mb-3">📭</div>
                 <p>Aucune commande pour l&apos;instant</p>
+                <p className="text-sm mt-1">Les nouvelles commandes apparaissent ici en temps réel</p>
               </div>
             )}
-            {pendingOrders.map((o) => (
-              <div key={o.id} className="bg-white rounded-2xl border-2 border-orange-400 p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">🔔 Nouvelle commande</span>
-                  <span className="text-xs text-gray-400">{new Date(o.created_at).toLocaleString("fr-FR")}</span>
-                </div>
-                {o.order?.notes && <p className="text-sm font-semibold text-gray-800 mb-1">📝 {o.order.notes}</p>}
-                <p className="text-sm text-gray-500">🏠 Livraison : {o.order?.dropoff_address}</p>
-                <p className="text-sm text-gray-500">💶 Total livraison : {o.order?.price_total?.toFixed(2)} €</p>
-                <div className="flex gap-3 mt-4">
-                  <button onClick={() => handleOrderAction(o.id, "rejected")}
-                    className="flex-1 border border-red-200 text-red-500 font-semibold py-2.5 rounded-xl hover:bg-red-50 transition text-sm">
-                    ✕ Refuser
-                  </button>
-                  <button onClick={() => handleOrderAction(o.id, "accepted")}
-                    className="flex-2 flex-1 bg-green-500 text-white font-bold py-2.5 rounded-xl hover:bg-green-600 transition text-sm">
-                    ✓ Accepter
-                  </button>
+
+            {/* Nouvelles commandes */}
+            {newOrders.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-orange-500 uppercase tracking-wide mb-3">🔔 Nouvelles commandes</h3>
+                <div className="space-y-3">
+                  {newOrders.map((o) => (
+                    <div key={o.id} className="bg-white rounded-2xl border-2 border-orange-400 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs text-gray-400">{new Date(o.created_at).toLocaleString("fr-FR")}</span>
+                      </div>
+                      {o.order?.client_name && <p className="text-sm font-bold text-gray-900 mb-1">👤 {o.order.client_name}</p>}
+                      {o.order?.client_phone && (
+                        <a href={`tel:${o.order.client_phone}`} className="text-sm text-blue-600 font-semibold mb-1 block hover:underline">
+                          📞 {o.order.client_phone}
+                        </a>
+                      )}
+                      {o.order?.notes && <p className="text-sm text-gray-700 mb-1">📝 {o.order.notes}</p>}
+                      <p className="text-sm text-gray-500">🏠 {o.order?.dropoff_address}</p>
+                      <p className="text-orange-500 font-bold mt-2">{o.order?.price_total?.toFixed(2)} €</p>
+                      <div className="flex gap-3 mt-4">
+                        <button onClick={() => handleOrderAction(o.id, "rejected")}
+                          className="flex-1 border border-red-200 text-red-500 font-semibold py-2.5 rounded-xl hover:bg-red-50 transition text-sm">
+                          ✕ Refuser
+                        </button>
+                        <button onClick={() => handleOrderAction(o.id, "preparing")}
+                          className="flex-1 bg-orange-500 text-white font-bold py-2.5 rounded-xl hover:bg-orange-600 transition text-sm">
+                          ✓ Accepter &amp; préparer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* Commandes en préparation */}
+            {activeOrders.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wide mb-3">🍳 En cours</h3>
+                <div className="space-y-3">
+                  {activeOrders.map((o) => (
+                    <div key={o.id} className="bg-white rounded-2xl border border-blue-200 p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                          o.status === "preparing" ? "bg-blue-100 text-blue-700" :
+                          o.status === "ready" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                        }`}>
+                          {o.status === "preparing" ? "🍳 En préparation" : o.status === "ready" ? "✅ Prête" : o.status}
+                        </span>
+                        <span className="text-xs text-gray-400">{new Date(o.created_at).toLocaleString("fr-FR")}</span>
+                      </div>
+                      {o.order?.client_name && <p className="text-sm font-semibold text-gray-900">👤 {o.order.client_name}</p>}
+                      {o.order?.notes && <p className="text-sm text-gray-600 mt-1">📝 {o.order.notes}</p>}
+                      <p className="text-sm text-gray-500 mt-1">🏠 {o.order?.dropoff_address}</p>
+                      {o.status === "preparing" && (
+                        <button onClick={() => handleOrderAction(o.id, "ready")}
+                          className="w-full mt-4 bg-green-500 text-white font-bold py-2.5 rounded-xl hover:bg-green-600 transition text-sm">
+                          ✅ Commande prête — coursier peut venir
+                        </button>
+                      )}
+                      {o.status === "ready" && (
+                        <div className="mt-3 bg-green-50 border border-green-200 rounded-xl p-3 text-center text-sm text-green-700 font-semibold">
+                          🚴 En attente du coursier
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Historique */}
             {pastOrders.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-semibold text-gray-500 mb-3">Historique</h3>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Historique</h3>
                 <div className="space-y-2">
                   {pastOrders.map((o) => (
                     <div key={o.id} className="bg-white rounded-xl p-4 flex items-center justify-between border border-gray-100">
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">{o.order?.notes || "Commande"}</p>
+                        <p className="text-sm font-semibold text-gray-800">{o.order?.client_name || o.order?.notes || "Commande"}</p>
                         <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString("fr-FR")}</p>
                       </div>
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${o.status === "accepted" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"}`}>
-                        {o.status === "accepted" ? "Acceptée" : "Refusée"}
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                        o.status === "delivered" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"
+                      }`}>
+                        {o.status === "delivered" ? "✅ Livrée" : "✕ Refusée"}
                       </span>
                     </div>
                   ))}
