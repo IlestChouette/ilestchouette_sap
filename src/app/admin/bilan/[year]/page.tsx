@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "../../../_lib/supabaseAdmin";
 import Image from "next/image";
+import PrintButton from "../PrintButton";
 
 const SHEET_ID = "1It-TOn5Caf8TYjnoc-4rCrMJv2lZE9q1eV4b7FYuAr4";
 
@@ -78,13 +79,7 @@ export default async function BilanPage({ params }: { params: Promise<{ year: st
 
         {/* Bouton impression (masqué à l'impression) */}
         <div className="flex justify-end mb-6 print:hidden">
-          <button
-            onClick={() => window.print()}
-            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-2 rounded-xl transition"
-            suppressHydrationWarning
-          >
-            📄 Imprimer / Sauvegarder PDF
-          </button>
+          <PrintButton />
         </div>
 
         {/* EN-TÊTE */}
