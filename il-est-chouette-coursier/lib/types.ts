@@ -23,6 +23,8 @@ export type Order = {
   wants_invoice?: boolean | null;
   extra_stops?: string[] | null;
   client_email?: string | null;
+  client_name?: string | null;
+  client_phone?: string | null;
   payment_method?: string | null;
 };
 

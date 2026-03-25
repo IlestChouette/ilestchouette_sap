@@ -140,6 +140,22 @@ function MissionCard({
 
           {/* ── Infos client ── */}
           <View style={styles.infoSection}>
+            {order.client_name ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoIcon}>👤</Text>
+                <Text style={[styles.infoText, { fontWeight: '700' }]}>{order.client_name}</Text>
+              </View>
+            ) : null}
+            {order.client_phone ? (
+              <Pressable
+                style={[styles.infoRow, styles.callRow]}
+                onPress={() => Linking.openURL(`tel:${order.client_phone}`)}
+              >
+                <Text style={styles.infoIcon}>📞</Text>
+                <Text style={[styles.infoText, { color: BLUE, fontWeight: '700' }]}>{order.client_phone}</Text>
+                <View style={styles.callBadge}><Text style={styles.callBadgeText}>Appeler</Text></View>
+              </Pressable>
+            ) : null}
             {order.client_email ? (
               <View style={styles.infoRow}>
                 <Text style={styles.infoIcon}>📧</Text>
@@ -528,7 +544,35 @@ export default function DashboardScreen() {
         .in('status', ['assigned', 'acceptee']),
     ]);
 
-    if (myAssignmentsRes.data) setAssignments(myAssignmentsRes.data as Assignment[]);
+    if (myAssignmentsRes.data) {
+      // Récupérer les profils clients pour afficher nom + téléphone
+      const clientEmails = myAssignmentsRes.data
+        .map((a: any) => a.order?.client_email)
+        .filter(Boolean);
+
+      let profilesMap: Record<string, { full_name?: string; phone?: string }> = {};
+      if (clientEmails.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('email, full_name, phone')
+          .in('email', clientEmails);
+        if (profiles) {
+          profiles.forEach((p: any) => { profilesMap[p.email] = p; });
+        }
+      }
+
+      // Injecter le profil dans chaque order
+      const enriched = myAssignmentsRes.data.map((a: any) => ({
+        ...a,
+        order: a.order ? {
+          ...a.order,
+          client_name: profilesMap[a.order.client_email]?.full_name ?? null,
+          client_phone: profilesMap[a.order.client_email]?.phone ?? null,
+        } : a.order,
+      }));
+
+      setAssignments(enriched as Assignment[]);
+    }
 
     const takenOrderIds = (activeAssignmentsRes.data ?? []).map((a: any) => a.order_id);
 
@@ -770,9 +814,12 @@ const styles = StyleSheet.create({
   addressText: { fontSize: 15, color: '#1F2937', fontWeight: '500', lineHeight: 20 },
 
   // Infos client
-  infoSection: { gap: 6 },
+  infoSection: { gap: 8 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  infoIcon: { fontSize: 15, width: 22 },
+  callRow: { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 8 },
+  callBadge: { backgroundColor: BLUE, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  callBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  infoIcon: { fontSize: 16, width: 24 },
   infoText: { fontSize: 14, color: '#374151', flex: 1 },
 
   // Notes
