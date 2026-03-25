@@ -1137,9 +1137,9 @@ export default function AdminPage() {
                         className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-sm font-semibold text-gray-700 transition">
                         {comptaLoading ? "Chargement..." : "🔄 Actualiser"}
                       </button>
-                      <button onClick={() => window.print()}
+                      <button onClick={() => window.open(`/admin/bilan/${comptaYear}`, "_blank")}
                         className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition">
-                        📄 Télécharger PDF
+                        📄 Générer bilan PDF
                       </button>
                     </div>
                   </div>
