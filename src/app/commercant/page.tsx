@@ -33,6 +33,9 @@ export default function CommercantPage() {
   const [openingHours, setOpeningHours] = useState("");
   const [siret, setSiret] = useState("");
 
+  // Conditions
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
   // Produits
   const [products, setProducts] = useState<Product[]>([emptyProduct()]);
 
@@ -54,7 +57,7 @@ export default function CommercantPage() {
     try {
       const { data: merchant, error: mErr } = await supabase
         .from("merchants")
-        .insert([{ name, address, category, phone, email, description, opening_hours: openingHours, siret: siret || null, status: "pending" }])
+        .insert([{ name, address, category, phone, email, description, opening_hours: openingHours, siret: siret || null, status: "pending", accepted_terms_at: new Date().toISOString() }])
         .select("id")
         .single();
 
@@ -313,13 +316,30 @@ export default function CommercantPage() {
                 </div>
               )}
 
+              {/* Case à cocher conditions */}
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-1 w-4 h-4 accent-orange-500 flex-shrink-0"
+                />
+                <span className="text-sm text-gray-600">
+                  J&apos;ai lu et j&apos;accepte les{" "}
+                  <a href="/conditions-partenaires" target="_blank" className="text-orange-500 font-semibold hover:underline">
+                    conditions partenaire
+                  </a>{" "}
+                  d&apos;Il est Chouette.
+                </span>
+              </label>
+
               {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg p-3">{error}</p>}
 
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setStep(2)} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-4 rounded-xl hover:bg-gray-50 transition">
                   ← Retour
                 </button>
-                <button onClick={handleSubmit} disabled={submitting}
+                <button onClick={handleSubmit} disabled={submitting || !acceptedTerms}
                   className="flex-1 bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 disabled:opacity-50 transition">
                   {submitting ? "Envoi…" : "Envoyer ma demande ✓"}
                 </button>
