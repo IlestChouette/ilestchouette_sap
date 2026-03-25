@@ -534,7 +534,7 @@ export default function DashboardScreen() {
     const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
       supabase
         .from('assignments')
-        .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,extra_stops,client_email,payment_method)')
+        .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,extra_stops,client_email,client_name,client_phone,payment_method)')
         .eq('courier_email', userEmail)
         .in('status', ['assigned', 'acceptee'])
         .order('assigned_at', { ascending: false }),
@@ -544,35 +544,7 @@ export default function DashboardScreen() {
         .in('status', ['assigned', 'acceptee']),
     ]);
 
-    if (myAssignmentsRes.data) {
-      // Récupérer les profils clients pour afficher nom + téléphone
-      const clientEmails = myAssignmentsRes.data
-        .map((a: any) => a.order?.client_email)
-        .filter(Boolean);
-
-      let profilesMap: Record<string, { full_name?: string; phone?: string }> = {};
-      if (clientEmails.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('email, full_name, phone')
-          .in('email', clientEmails);
-        if (profiles) {
-          profiles.forEach((p: any) => { profilesMap[p.email] = p; });
-        }
-      }
-
-      // Injecter le profil dans chaque order
-      const enriched = myAssignmentsRes.data.map((a: any) => ({
-        ...a,
-        order: a.order ? {
-          ...a.order,
-          client_name: profilesMap[a.order.client_email]?.full_name ?? null,
-          client_phone: profilesMap[a.order.client_email]?.phone ?? null,
-        } : a.order,
-      }));
-
-      setAssignments(enriched as Assignment[]);
-    }
+    if (myAssignmentsRes.data) setAssignments(myAssignmentsRes.data as Assignment[]);
 
     const takenOrderIds = (activeAssignmentsRes.data ?? []).map((a: any) => a.order_id);
 

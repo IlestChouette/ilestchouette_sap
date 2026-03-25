@@ -1022,6 +1022,8 @@ export default function OperatorDashboard() {
       pickup_lon: lines[0]?.pickupLon ?? null,
       dropoff_lat: dropoffLat ?? null,
       dropoff_lon: dropoffLon ?? null,
+      client_name: `${customer.first_name ?? ""} ${customer.last_name ?? ""}`.trim() || null,
+      client_phone: customer.phone || null,
     };
 
     if (validationCode) {

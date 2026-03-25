@@ -65,6 +65,7 @@ export default function CommanderScreen() {
   const [done, setDone] = useState(false);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
+  const [userPhone, setUserPhone] = useState('');
   const [savedAddresses, setSavedAddresses] = useState('');
   const [merchants, setMerchants] = useState<any[]>([]);
 
@@ -91,10 +92,11 @@ export default function CommanderScreen() {
 
       if (user?.id) {
         const [{ data: profile }, { data: addresses }] = await Promise.all([
-          supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
+          supabase.from('profiles').select('full_name, phone').eq('id', user.id).maybeSingle(),
           supabase.from('saved_addresses').select('label, address').eq('user_id', user.id),
         ]);
         if (profile?.full_name) name = profile.full_name;
+        if (profile?.phone) setUserPhone(profile.phone);
         if (addresses?.length) addrStr = addresses.map((a) => `${a.label}: ${a.address}`).join(', ');
       }
 
@@ -269,6 +271,8 @@ export default function CommanderScreen() {
     const orders = pendingAction!.orders;
     const rows = orders.map(o => ({
       client_email: userEmail || null,
+      client_name: userName || null,
+      client_phone: userPhone || null,
       service_type: o.service_id,
       pickup_address: o.pickup_address ?? null,
       dropoff_address: o.dropoff_address,
