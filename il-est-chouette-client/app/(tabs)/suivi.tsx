@@ -80,13 +80,32 @@ export default function SuiviScreen() {
 
   async function loadOrders(email: string) {
     setLoading(true);
+
+    // Commandes actives
     const { data } = await supabase
       .from('orders')
       .select('*')
       .eq('client_email', email)
-      .not('status', 'in', '("terminee","annulee")')
+      .not('status', 'in', '("terminee","annulee","cancelled")')
       .order('created_at', { ascending: false });
     setOrders((data ?? []) as Order[]);
+
+    // Vérifier annulations récentes non encore vues (dernières 24h)
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: cancelled } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('client_email', email)
+      .in('status', ['annulee', 'cancelled'])
+      .eq('cancellation_reason', 'no_courier')
+      .gte('updated_at', since)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (cancelled && cancelled.length > 0) {
+      setCancelledOrder(cancelled[0] as Order);
+    }
+
     setLoading(false);
   }
 
