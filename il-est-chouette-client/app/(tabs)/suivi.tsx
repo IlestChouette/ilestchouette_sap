@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +28,8 @@ export default function SuiviScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState('');
+  const [cancelledOrder, setCancelledOrder] = useState<Order | null>(null);
+  const [rescheduling, setRescheduling] = useState(false);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -43,15 +45,17 @@ export default function SuiviScreen() {
       channel = supabase
         .channel('client-order-updates')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
-          const updated = payload.new as Order;
+          const updated = payload.new as Order & { cancellation_reason?: string };
           if (updated.client_email === email) {
-            setOrders(prev => {
-              // Remove if now terminated/cancelled, otherwise update
-              if (updated.status === 'terminee' || updated.status === 'annulee') {
-                return prev.filter(o => o.id !== updated.id);
-              }
-              return prev.map(o => o.id === updated.id ? updated : o);
-            });
+            if (updated.status === 'annulee' && updated.cancellation_reason === 'no_courier') {
+              // Annulation automatique — montrer le modal
+              setCancelledOrder(updated);
+              setOrders(prev => prev.filter(o => o.id !== updated.id));
+            } else if (updated.status === 'terminee' || updated.status === 'annulee') {
+              setOrders(prev => prev.filter(o => o.id !== updated.id));
+            } else {
+              setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
+            }
           }
         })
         .subscribe();
@@ -59,6 +63,20 @@ export default function SuiviScreen() {
     init();
     return () => { channel?.unsubscribe(); };
   }, []);
+
+  async function handleReschedule() {
+    if (!cancelledOrder) return;
+    setRescheduling(true);
+    const scheduledAt = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+    await supabase.from('orders').update({
+      status: 'pending',
+      cancellation_reason: null,
+      scheduled_at: scheduledAt,
+    }).eq('id', cancelledOrder.id);
+    setRescheduling(false);
+    setCancelledOrder(null);
+    await loadOrders(userEmail);
+  }
 
   async function loadOrders(email: string) {
     setLoading(true);
@@ -94,6 +112,42 @@ export default function SuiviScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+
+      {/* Modal annulation automatique */}
+      <Modal visible={!!cancelledOrder} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalEmoji}>😕</Text>
+            <Text style={styles.modalTitle}>Aucun coursier disponible</Text>
+            <Text style={styles.modalText}>
+              Votre commande n'a pas pu être prise en charge.{'\n'}
+              {cancelledOrder?.stripe_payment_intent_id
+                ? 'Votre paiement a été remboursé automatiquement.'
+                : 'Que souhaitez-vous faire ?'}
+            </Text>
+
+            <Pressable
+              style={[styles.modalBtn, styles.modalBtnPrimary]}
+              onPress={handleReschedule}
+              disabled={rescheduling}
+            >
+              <Text style={styles.modalBtnPrimaryText}>
+                {rescheduling ? 'Reprogrammation...' : '🕐 Reprogrammer dans 6h'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.modalBtn, styles.modalBtnSecondary]}
+              onPress={() => setCancelledOrder(null)}
+            >
+              <Text style={styles.modalBtnSecondaryText}>
+                {cancelledOrder?.stripe_payment_intent_id ? '✅ Remboursement compris' : 'Annuler'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerEmoji}>🚴</Text>
@@ -294,4 +348,16 @@ const styles = StyleSheet.create({
 
   callBtn: { backgroundColor: '#fff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   callBtnText: { fontSize: 15, fontWeight: '700', color: GRAY_700 },
+
+  // Modal annulation
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalBox: { backgroundColor: '#fff', borderRadius: 24, padding: 28, alignItems: 'center', gap: 12, width: '100%' },
+  modalEmoji: { fontSize: 56 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: '#111827', textAlign: 'center' },
+  modalText: { fontSize: 14, color: GRAY_500, textAlign: 'center', lineHeight: 20 },
+  modalBtn: { width: '100%', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 },
+  modalBtnPrimary: { backgroundColor: ORANGE },
+  modalBtnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  modalBtnSecondary: { backgroundColor: '#F3F4F6' },
+  modalBtnSecondaryText: { color: GRAY_700, fontWeight: '700', fontSize: 15 },
 });

@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Linking,
   Platform,
   Pressable,
@@ -477,6 +479,16 @@ export default function DashboardScreen() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+
+  // Charger les IDs passés depuis AsyncStorage au démarrage
+  useEffect(() => {
+    AsyncStorage.getItem('skipped_orders').then((val) => {
+      if (val) {
+        const parsed: string[] = JSON.parse(val);
+        setSkippedIds(new Set(parsed));
+      }
+    });
+  }, []);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [finishingId, setFinishingId] = useState<string | null>(null);
@@ -485,7 +497,16 @@ export default function DashboardScreen() {
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 20_000);
-    return () => clearInterval(interval);
+
+    // Recharger quand l'app revient au premier plan
+    const appStateSub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') loadData();
+    });
+
+    return () => {
+      clearInterval(interval);
+      appStateSub.remove();
+    };
   }, []);
 
   async function loadData() {
@@ -493,23 +514,23 @@ export default function DashboardScreen() {
     const userEmail = sessionData.session?.user?.email ?? '';
     setCourierEmail(userEmail);
 
-    // Mes missions assignées
-    const { data: myAssignments } = await supabase
-      .from('assignments')
-      .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,extra_stops,client_email,payment_method)')
-      .eq('courier_email', userEmail)
-      .in('status', ['assigned', 'acceptee'])
-      .order('assigned_at', { ascending: false });
+    // Mes missions + commandes actives en parallèle
+    const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
+      supabase
+        .from('assignments')
+        .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,extra_stops,client_email,payment_method)')
+        .eq('courier_email', userEmail)
+        .in('status', ['assigned', 'acceptee'])
+        .order('assigned_at', { ascending: false }),
+      supabase
+        .from('assignments')
+        .select('order_id')
+        .in('status', ['assigned', 'acceptee']),
+    ]);
 
-    if (myAssignments) setAssignments(myAssignments as Assignment[]);
+    if (myAssignmentsRes.data) setAssignments(myAssignmentsRes.data as Assignment[]);
 
-    // Commandes en attente non encore assignées
-    const { data: activeAssignments } = await supabase
-      .from('assignments')
-      .select('order_id')
-      .in('status', ['assigned', 'acceptee']);
-
-    const takenOrderIds = (activeAssignments ?? []).map((a: any) => a.order_id);
+    const takenOrderIds = (activeAssignmentsRes.data ?? []).map((a: any) => a.order_id);
 
     let query = supabase
       .from('orders')
@@ -633,11 +654,20 @@ export default function DashboardScreen() {
                     <Text style={styles.availableService}>{SERVICE_LABELS[o.service_type] ?? o.service_type}</Text>
                     <Text style={styles.availablePrice}>{o.price_total?.toFixed(2)} €</Text>
                   </View>
+                  <Text style={styles.availableTime}>
+                    🕐 {o.scheduled_at
+                      ? `Planifié : ${formatDate(o.scheduled_at)}`
+                      : `Reçue : ${formatDate(o.created_at)}`}
+                  </Text>
                   {o.pickup_address ? <Text style={styles.availableAddr}>📍 Depuis : {o.pickup_address}</Text> : null}
                   <Text style={styles.availableAddr}>🏠 Vers : {o.dropoff_address}</Text>
                   {o.notes ? <Text style={styles.availableNotes}>{o.notes}</Text> : null}
                   <View style={styles.availableBtns}>
-                    <Pressable style={styles.skipBtn} onPress={() => setSkippedIds((prev) => new Set([...prev, o.id]))}>
+                    <Pressable style={styles.skipBtn} onPress={() => {
+                      const next = new Set([...skippedIds, o.id]);
+                      setSkippedIds(next);
+                      AsyncStorage.setItem('skipped_orders', JSON.stringify([...next]));
+                    }}>
                       <Text style={styles.skipBtnText}>Passer</Text>
                     </Pressable>
                     <Pressable style={styles.claimBtn} onPress={() => handleClaimOrder(o)}>
@@ -808,6 +838,7 @@ const styles = StyleSheet.create({
   availableTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   availableService: { fontSize: 15, fontWeight: '800', color: '#EA580C' },
   availablePrice: { fontSize: 16, fontWeight: '800', color: '#EA580C' },
+  availableTime: { fontSize: 12, color: '#1B5E9B', fontWeight: '600', marginBottom: 2 },
   availableAddr: { fontSize: 13, color: '#374151' },
   availableNotes: { fontSize: 12, color: '#6B7280', fontStyle: 'italic' },
   claimBtn: { flex: 1, backgroundColor: '#F97316', borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
