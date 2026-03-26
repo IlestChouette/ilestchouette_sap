@@ -107,7 +107,7 @@ export default function EdlPage() {
     });
 
     setShowForm(false);
-    setForm({ date_mission: "", type_mission: "sortant", adresse: "", surface_m2: "", meuble: false, fd_sup: "0", numero_mission: "", notes: "" });
+    setForm({ date_mission: "", type_mission: "sortant", adresse: "", surface_m2: "", meuble: false, fd_sup: "0", numero_mission: "", notes: "", heure_debut: "", heure_fin: "" });
     loadMissions();
   }
 
