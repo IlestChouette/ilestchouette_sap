@@ -37,6 +37,7 @@ type EdlMission = {
   facture_mois: string | null;
   heure_debut: string | null;
   heure_fin: string | null;
+  gestionnaire: string | null;
 };
 
 
@@ -70,6 +71,7 @@ export default function EdlPage() {
     notes: "",
     heure_debut: "",
     heure_fin: "",
+    gestionnaire: "",
   });
 
   useEffect(() => {
@@ -104,10 +106,11 @@ export default function EdlPage() {
       notes: form.notes || null,
       heure_debut: form.heure_debut || null,
       heure_fin: form.heure_fin || null,
+      gestionnaire: form.gestionnaire || null,
     });
 
     setShowForm(false);
-    setForm({ date_mission: "", type_mission: "sortant", adresse: "", surface_m2: "", meuble: false, fd_sup: "0", numero_mission: "", notes: "", heure_debut: "", heure_fin: "" });
+    setForm({ date_mission: "", type_mission: "sortant", adresse: "", surface_m2: "", meuble: false, fd_sup: "0", numero_mission: "", notes: "", heure_debut: "", heure_fin: "", gestionnaire: "" });
     loadMissions();
   }
 
@@ -192,8 +195,12 @@ export default function EdlPage() {
                 <input type="number" step="0.01" className="w-full border rounded-xl px-3 py-2 text-sm" value={form.fd_sup} onChange={e => setForm(f => ({...f, fd_sup: e.target.value}))} placeholder="0" />
               </div>
               <div className="col-span-2">
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Gestionnaire</label>
+                <input className="w-full border rounded-xl px-3 py-2 text-sm" value={form.gestionnaire} onChange={e => setForm(f => ({...f, gestionnaire: e.target.value}))} placeholder="ex: Mme DURAND Véronique — Agence Tissinie" />
+              </div>
+              <div className="col-span-2">
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Notes</label>
-                <input className="w-full border rounded-xl px-3 py-2 text-sm" value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} placeholder="ex: T4, Appartement, Gestionnaire Mme DURAND..." />
+                <input className="w-full border rounded-xl px-3 py-2 text-sm" value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} placeholder="ex: T4, Appartement..." />
               </div>
 
               {tarifPreview !== null && (
