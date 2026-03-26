@@ -18,7 +18,7 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#FFF7ED"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": false
     },
     "web": {
       "output": "static",
@@ -47,7 +47,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#FFF7ED"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true
@@ -55,7 +56,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": ""
+        "projectId": "8f575f7c-fd52-4f07-be70-97df6e54839d"
       }
     }
   }

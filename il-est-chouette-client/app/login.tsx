@@ -39,8 +39,9 @@ export default function LoginScreen() {
     if (!email || !password) { setError(t('auth.error_credentials')); return; }
     setLoading(true); setError('');
     const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (err) setError(t('auth.error_credentials'));
+    if (err) { setError(t('auth.error_credentials')); setLoading(false); return; }
     setLoading(false);
+    router.replace('/(tabs)');
   }
 
   async function handleSendOtp() {

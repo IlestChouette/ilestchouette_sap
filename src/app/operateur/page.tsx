@@ -686,7 +686,7 @@ export default function OperatorDashboard() {
     }[];
   }
 
-  /* ====== trouver les livreurs disponibles ====== */
+  /* ====== trouver les coursiers disponibles ====== */
   async function findAvailableCouriers() {
     if (!scheduledAt) {
       setInfo("Choisis d’abord une date/heure.");
@@ -786,13 +786,13 @@ export default function OperatorDashboard() {
     if (nbDispo === 0) {
       setInfo("Aucun coursier disponible pour cet horaire.");
     } else {
-      setInfo(`${nbDispo} livreur(s) disponible(s) trouvés ✅`);
+      setInfo(`${nbDispo} coursier(s) disponible(s) trouvés ✅`);
     }
   }
 
   function handlePickCourier(id: string) {
     setSelectedCourierId(id);
-    setInfo(`Livreur sélectionné : ${id}`);
+    setInfo(`Coursier sélectionné : ${id}`);
   }
 
   /* 🔹 PLANNING GLOBAL PAR JOUR 🔹 */
@@ -1509,7 +1509,7 @@ export default function OperatorDashboard() {
                   className="border rounded px-3 py-2 cursor-pointer"
                   onClick={findAvailableCouriers}
                 >
-                  Voir livreurs disponibles
+                  Voir coursiers disponibles
                 </button>
               </div>
 

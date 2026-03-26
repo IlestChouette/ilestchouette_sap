@@ -4,12 +4,14 @@ import { Stack, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { StripeProvider } from '@stripe/stripe-react-native';
-import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { registerForPushNotifications, saveClientPushToken } from '@/lib/notifications';
 import { ORANGE, BG } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const isExpoGo = Constants.appOwnership === 'expo';
 
 const STRIPE_PK = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
 const ONBOARDING_KEY = 'onboarding_done';
@@ -20,7 +22,7 @@ export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
-  const notifListener = useRef<Notifications.EventSubscription | null>(null);
+  const notifListener = useRef<{ remove: () => void } | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -36,13 +38,16 @@ export default function RootLayout() {
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s);
-      if (s?.user?.id) {
+      if (s?.user?.id && !isExpoGo) {
         const token = await registerForPushNotifications();
         if (token) await saveClientPushToken(s.user.id, token);
       }
     });
 
-    notifListener.current = Notifications.addNotificationReceivedListener(() => {});
+    if (!isExpoGo) {
+      const N = require('expo-notifications');
+      notifListener.current = N.addNotificationReceivedListener(() => {});
+    }
 
     return () => {
       listener.subscription.unsubscribe();
