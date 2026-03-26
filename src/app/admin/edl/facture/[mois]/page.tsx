@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -58,8 +59,6 @@ export default function FactureEdlPage() {
   }, [mois]);
 
   const totalHT = missions.reduce((s, m) => s + m.montant_ht, 0);
-  const totalTVA = totalHT * 0.2;
-  const totalTTC = totalHT * 1.2;
 
   if (loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Chargement...</div>;
 
@@ -81,7 +80,7 @@ export default function FactureEdlPage() {
         {/* En-tête */}
         <div className="flex justify-between mb-8">
           <div>
-            <p className="text-lg font-bold text-gray-900">Il est Chouette</p>
+            <Image src="/logo-chouette.png" alt="Il est Chouette" width={140} height={50} className="mb-2" />
             <p className="text-sm text-gray-600">SASU au capital de 5 000 €</p>
             <p className="text-sm text-gray-600">SIREN : 942 069 949</p>
             <p className="text-sm text-gray-600">143 Promenade des Anglais</p>
@@ -117,57 +116,53 @@ export default function FactureEdlPage() {
         {missions.length === 0 ? (
           <p className="text-center text-gray-400 py-8">Aucune mission pour ce mois.</p>
         ) : (
-          <table className="w-full text-sm mb-6">
+          <div className="overflow-x-auto">
+          <table className="w-full text-xs mb-6">
             <thead>
               <tr className="bg-gray-900 text-white">
-                <th className="text-left px-3 py-2 rounded-tl-lg">N° Mission</th>
-                <th className="text-left px-3 py-2">Date</th>
-                <th className="text-left px-3 py-2">Créneau</th>
-                <th className="text-left px-3 py-2">Type</th>
-                <th className="text-left px-3 py-2">Adresse du bien</th>
-                <th className="text-left px-3 py-2">Surface</th>
-                <th className="text-left px-3 py-2">Meublé</th>
-                <th className="text-left px-3 py-2">FD Sup.</th>
-                <th className="text-left px-3 py-2">HT</th>
-                <th className="text-left px-3 py-2 rounded-tr-lg">TTC</th>
+                <th className="text-left px-2 py-2 rounded-tl-lg whitespace-nowrap">N° Mission</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">Date</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">Créneau</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">Type</th>
+                <th className="text-left px-2 py-2">Adresse du bien</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">Surface</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">Meublé</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">FD Sup.</th>
+                <th className="text-left px-2 py-2 whitespace-nowrap">HT</th>
+                <th className="text-left px-2 py-2 rounded-tr-lg whitespace-nowrap">TTC</th>
               </tr>
             </thead>
             <tbody>
               {missions.map((m, i) => (
                 <tr key={m.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="px-3 py-2 text-gray-500">{m.numero_mission || "-"}</td>
-                  <td className="px-3 py-2">{new Date(m.date_mission).toLocaleDateString("fr-FR")}</td>
-                  <td className="px-3 py-2">{m.heure_debut && m.heure_fin ? `${m.heure_debut.slice(0,5)} - ${m.heure_fin.slice(0,5)}` : "-"}</td>
-                  <td className="px-3 py-2 capitalize">{m.type_mission}</td>
-                  <td className="px-3 py-2">{m.adresse}</td>
-                  <td className="px-3 py-2">{m.surface_m2} m²</td>
-                  <td className="px-3 py-2">{m.meuble ? "Oui" : "Non"}</td>
-                  <td className="px-3 py-2">{m.fd_sup > 0 ? `${m.fd_sup.toFixed(2)} €` : "-"}</td>
-                  <td className="px-3 py-2 font-semibold">{m.montant_ht.toFixed(2)} €</td>
-                  <td className="px-3 py-2">{(m.montant_ht * 1.2).toFixed(2)} €</td>
+                  <td className="px-2 py-2 text-gray-500">{m.numero_mission || "-"}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{new Date(m.date_mission).toLocaleDateString("fr-FR")}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{m.heure_debut && m.heure_fin ? `${m.heure_debut.slice(0,5)} - ${m.heure_fin.slice(0,5)}` : "-"}</td>
+                  <td className="px-2 py-2 capitalize">{m.type_mission}</td>
+                  <td className="px-2 py-2">{m.adresse}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{m.surface_m2} m²</td>
+                  <td className="px-2 py-2">{m.meuble ? "Oui" : "Non"}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{m.fd_sup > 0 ? `${m.fd_sup.toFixed(2)} €` : "-"}</td>
+                  <td className="px-2 py-2 font-semibold whitespace-nowrap">{m.montant_ht.toFixed(2)} €</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{(m.montant_ht * 1.2).toFixed(2)} €</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* Totaux */}
-        <div className="flex justify-end mb-8">
+        <div className="flex justify-end mb-4">
           <div className="w-64 text-sm">
-            <div className="flex justify-between py-1 border-b border-gray-100">
-              <span className="text-gray-600">Total HT</span>
-              <span className="font-semibold">{totalHT.toFixed(2)} €</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-gray-100">
-              <span className="text-gray-600">TVA 20%</span>
-              <span>{totalTVA.toFixed(2)} €</span>
-            </div>
-            <div className="flex justify-between py-2 text-base font-bold">
-              <span>Total TTC</span>
-              <span className="text-orange-600">{totalTTC.toFixed(2)} €</span>
+            <div className="flex justify-between py-2 text-base font-bold border-t border-gray-200">
+              <span>Total à payer</span>
+              <span className="text-orange-600">{totalHT.toFixed(2)} €</span>
             </div>
           </div>
         </div>
+
+        <p className="text-xs text-gray-400 italic mb-8">TVA non applicable — art. 293 B du CGI</p>
 
         {/* Pied de page */}
         <div className="border-t border-gray-200 pt-4 text-xs text-gray-400 text-center">
