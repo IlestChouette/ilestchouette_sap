@@ -1141,6 +1141,10 @@ export default function AdminPage() {
                         className="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition">
                         📄 Générer bilan PDF
                       </button>
+                      <button onClick={() => window.open("/admin/edl", "_blank")}
+                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition">
+                        🏠 France EDL
+                      </button>
                     </div>
                   </div>
 

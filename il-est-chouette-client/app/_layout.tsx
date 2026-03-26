@@ -1,6 +1,6 @@
 import '@/lib/i18n';
 import { useEffect, useRef, useState } from 'react';
-import { Stack, Redirect } from 'expo-router';
+import { Stack, Redirect, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { StripeProvider } from '@stripe/stripe-react-native';
@@ -23,6 +23,16 @@ export default function RootLayout() {
   const [loading, setLoading] = useState(true);
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
   const notifListener = useRef<{ remove: () => void } | null>(null);
+  const pathname = usePathname();
+
+  // Re-check onboardingDone when user navigates away from onboarding
+  useEffect(() => {
+    if (pathname !== '/onboarding' && !onboardingDone) {
+      AsyncStorage.getItem(ONBOARDING_KEY).then(done => {
+        if (done === 'true') setOnboardingDone(true);
+      });
+    }
+  }, [pathname]);
 
   useEffect(() => {
     async function init() {
