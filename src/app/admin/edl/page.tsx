@@ -35,13 +35,23 @@ type EdlMission = {
   numero_mission: string | null;
   notes: string | null;
   facture_mois: string | null;
+  heure_debut: string | null;
+  heure_fin: string | null;
 };
 
-const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
 export default function EdlPage() {
+  const [authed, setAuthed] = useState(false);
   const [missions, setMissions] = useState<EdlMission[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (sessionStorage.getItem("admin_authed") !== "1") {
+      window.location.href = "/admin";
+    } else {
+      setAuthed(true);
+    }
+  }, []);
   const [showForm, setShowForm] = useState(false);
   const [selectedMois, setSelectedMois] = useState(() => {
     const now = new Date();
@@ -58,6 +68,8 @@ export default function EdlPage() {
     fd_sup: "0",
     numero_mission: "",
     notes: "",
+    heure_debut: "",
+    heure_fin: "",
   });
 
   useEffect(() => {
@@ -90,6 +102,8 @@ export default function EdlPage() {
       montant_ht: montantHt,
       numero_mission: form.numero_mission || null,
       notes: form.notes || null,
+      heure_debut: form.heure_debut || null,
+      heure_fin: form.heure_fin || null,
     });
 
     setShowForm(false);
@@ -107,119 +121,6 @@ export default function EdlPage() {
   const missionsDuMois = missions.filter(m => m.date_mission?.startsWith(selectedMois));
   const totalHT = missionsDuMois.reduce((s, m) => s + m.montant_ht, 0);
   const totalTTC = totalHT * 1.2;
-
-  // Générer numéro de facture : EDL-AAAAMM-001
-  const numeroFacture = `EDL-${selectedMois.replace("-", "")}-001`;
-
-  function genererFacturePDF() {
-    const [annee, mois] = selectedMois.split("-");
-    const nomMois = MOIS[parseInt(mois) - 1];
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; font-size: 12px; margin: 40px; color: #222; }
-          .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
-          .title { text-align: center; font-size: 16px; font-weight: bold; margin: 20px 0; border: 2px solid #222; padding: 8px; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th { background: #333; color: white; padding: 8px; text-align: left; font-size: 11px; }
-          td { padding: 7px 8px; border-bottom: 1px solid #ddd; }
-          .total-row { font-weight: bold; background: #f5f5f5; }
-          .footer { margin-top: 30px; font-size: 11px; color: #555; }
-          .info-block { margin-bottom: 20px; }
-          .info-block h3 { font-size: 12px; font-weight: bold; margin-bottom: 4px; }
-          @media print { button { display: none; } }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div>
-            <strong>Il est Chouette</strong><br>
-            SASU au capital de 5 000 €<br>
-            SIREN : 942 069 949<br>
-            143 Promenade des Anglais<br>
-            06200 Nice<br>
-            Tel : 06 95 42 73 12<br>
-            allo@ilestchouette.fr
-          </div>
-          <div style="text-align:right">
-            <strong>France EDL</strong><br>
-            32 rue Molière<br>
-            69006 LYON<br>
-            Tel : 09 72 47 40 49
-          </div>
-        </div>
-
-        <div class="title">FACTURE N° ${numeroFacture}</div>
-
-        <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-          <div><strong>Date :</strong> ${new Date().toLocaleDateString("fr-FR")}</div>
-          <div><strong>Période :</strong> ${nomMois} ${annee}</div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>N° Mission</th>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Adresse du bien</th>
-              <th>Surface</th>
-              <th>Meublé</th>
-              <th>FD Sup.</th>
-              <th>Montant HT</th>
-              <th>Montant TTC</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${missionsDuMois.map(m => `
-              <tr>
-                <td>${m.numero_mission || "-"}</td>
-                <td>${new Date(m.date_mission).toLocaleDateString("fr-FR")}</td>
-                <td>${m.type_mission === "entrant" ? "Entrant" : "Sortant"}</td>
-                <td>${m.adresse}</td>
-                <td>${m.surface_m2} m²</td>
-                <td>${m.meuble ? "Oui" : "Non"}</td>
-                <td>${m.fd_sup > 0 ? m.fd_sup.toFixed(2) + " €" : "-"}</td>
-                <td>${m.montant_ht.toFixed(2)} €</td>
-                <td>${(m.montant_ht * 1.2).toFixed(2)} €</td>
-              </tr>
-            `).join("")}
-            <tr class="total-row">
-              <td colspan="7" style="text-align:right"><strong>TOTAL</strong></td>
-              <td><strong>${totalHT.toFixed(2)} €</strong></td>
-              <td><strong>${totalTTC.toFixed(2)} €</strong></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div style="margin-top:20px; text-align:right">
-          <table style="margin-left:auto; width:300px;">
-            <tr><td>Total HT</td><td style="text-align:right"><strong>${totalHT.toFixed(2)} €</strong></td></tr>
-            <tr><td>TVA 20%</td><td style="text-align:right">${(totalHT * 0.2).toFixed(2)} €</td></tr>
-            <tr style="font-size:14px; font-weight:bold;"><td>Total TTC</td><td style="text-align:right">${totalTTC.toFixed(2)} €</td></tr>
-          </table>
-        </div>
-
-        <div class="footer">
-          <p><strong>Objet :</strong> Prestation états des lieux — ${nomMois} ${annee}</p>
-          <p>Facture à régler par virement. IBAN disponible sur demande.</p>
-          <p>Facture conforme aux exigences France EDL.</p>
-        </div>
-
-        <div style="text-align:center; margin-top:40px;">
-          <button onclick="window.print()" style="padding:10px 24px; background:#f97316; color:white; border:none; border-radius:8px; cursor:pointer; font-size:14px;">
-            Imprimer / Enregistrer PDF
-          </button>
-        </div>
-      </body>
-      </html>
-    `;
-    const w = window.open("", "_blank");
-    if (w) { w.document.write(html); w.document.close(); }
-  }
 
   const surfacePreview = parseInt(form.surface_m2) || 0;
   const fdSupPreview = parseFloat(form.fd_sup) || 0;
@@ -262,6 +163,14 @@ export default function EdlPage() {
                   <option value="entrant">Entrant</option>
                   <option value="sortant">Sortant</option>
                 </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Heure début</label>
+                <input type="time" className="w-full border rounded-xl px-3 py-2 text-sm" value={form.heure_debut} onChange={e => setForm(f => ({...f, heure_debut: e.target.value}))} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Heure fin</label>
+                <input type="time" className="w-full border rounded-xl px-3 py-2 text-sm" value={form.heure_fin} onChange={e => setForm(f => ({...f, heure_fin: e.target.value}))} />
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 block mb-1">Surface (m²) *</label>
@@ -321,11 +230,11 @@ export default function EdlPage() {
               <span className="text-gray-400 ml-1">({totalTTC.toFixed(2)} € TTC)</span>
             </div>
             <button
-              onClick={genererFacturePDF}
+              onClick={() => window.open(`/admin/edl/facture/${selectedMois}`, "_blank")}
               disabled={missionsDuMois.length === 0}
               className="bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm"
             >
-              Générer facture PDF
+              📄 Voir facture du mois
             </button>
           </div>
         </div>
@@ -337,6 +246,7 @@ export default function EdlPage() {
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">N° Mission</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Date</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Créneau</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Type</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Adresse</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Surface</th>
@@ -358,6 +268,7 @@ export default function EdlPage() {
                 <tr key={m.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-500">{m.numero_mission || "-"}</td>
                   <td className="px-4 py-3">{new Date(m.date_mission).toLocaleDateString("fr-FR")}</td>
+                  <td className="px-4 py-3 text-gray-500">{m.heure_debut && m.heure_fin ? `${m.heure_debut.slice(0,5)} - ${m.heure_fin.slice(0,5)}` : "-"}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${m.type_mission === "entrant" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
                       {m.type_mission === "entrant" ? "Entrant" : "Sortant"}
