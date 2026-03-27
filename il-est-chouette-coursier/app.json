@@ -2,7 +2,7 @@
   "expo": {
     "name": "il-est-chouette-coursier",
     "slug": "il-est-chouette-coursier",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ilestchouettecoursier",
@@ -32,6 +32,7 @@
         "expo-notifications",
         {
           "sounds": [
+            "./assets/sounds/owl.wav",
             "./assets/sounds/icq.mp3"
           ]
         }

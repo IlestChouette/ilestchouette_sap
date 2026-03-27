@@ -24,15 +24,17 @@ const GREEN = '#16A34A';
 const RED = '#DC2626';
 const ORANGE = '#EA580C';
 
-function buildMapsUrl(assignment: Assignment): string {
-  const order = assignment.order;
-  if (!order) return '';
-  const origin = encodeURIComponent(order.pickup_address ?? '');
-  const destination = encodeURIComponent(order.dropoff_address ?? '');
-  if (Platform.OS === 'ios') {
-    return `maps://maps.apple.com/?saddr=${origin}&daddr=${destination}&dirflg=d`;
-  }
-  return `https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=${origin}&destination=${destination}`;
+function buildPickupUrl(address: string): string {
+  const dest = encodeURIComponent(address);
+  if (Platform.OS === 'ios') return `maps://maps.apple.com/?daddr=${dest}&dirflg=d`;
+  return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${dest}`;
+}
+
+function buildDropoffUrl(pickup: string, dropoff: string): string {
+  const origin = encodeURIComponent(pickup);
+  const dest = encodeURIComponent(dropoff);
+  if (Platform.OS === 'ios') return `maps://maps.apple.com/?saddr=${origin}&daddr=${dest}&dirflg=d`;
+  return `https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=${origin}&destination=${dest}`;
 }
 
 function statusLabel(status?: AssignmentStatus | null) {
@@ -72,7 +74,10 @@ function MissionCard({
 }) {
   const order = assignment.order;
   const { label, color } = statusLabel(assignment.status);
-  const mapsUrl = buildMapsUrl(assignment);
+  const pickupUrl = order?.pickup_address ? buildPickupUrl(order.pickup_address) : '';
+  const dropoffUrl = (order?.pickup_address && order?.dropoff_address)
+    ? buildDropoffUrl(order.pickup_address, order.dropoff_address)
+    : order?.dropoff_address ? buildPickupUrl(order.dropoff_address) : '';
 
   const isScheduled = !!order?.scheduled_at;
 
@@ -205,12 +210,19 @@ function MissionCard({
         <Text style={styles.notesText}>Détails non disponibles</Text>
       )}
 
-      {/* ── Bouton navigation ── */}
-      {mapsUrl ? (
-        <Pressable style={styles.mapsBtn} onPress={() => Linking.openURL(mapsUrl)}>
-          <Text style={styles.mapsBtnText}>📍 Ouvrir l'itinéraire</Text>
-        </Pressable>
-      ) : null}
+      {/* ── Boutons navigation ── */}
+      <View style={styles.mapsBtnRow}>
+        {pickupUrl ? (
+          <Pressable style={[styles.mapsBtn, styles.mapsBtnPickup]} onPress={() => Linking.openURL(pickupUrl)}>
+            <Text style={styles.mapsBtnText}>📍 Aller chercher</Text>
+          </Pressable>
+        ) : null}
+        {dropoffUrl ? (
+          <Pressable style={[styles.mapsBtn, styles.mapsBtnDropoff]} onPress={() => Linking.openURL(dropoffUrl)}>
+            <Text style={styles.mapsBtnText}>🏠 Livrer</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {/* ── Actions selon statut ── */}
       {assignment.status === 'assigned' && (
@@ -256,7 +268,7 @@ function FinishModal({
 }) {
   const [step, setStep] = useState<FinishStep>('form');
   const [code, setCode] = useState('');
-  const [payment, setPayment] = useState<'cash' | 'card' | 'to_pay' | ''>('');
+  const [payment, setPayment] = useState<'cash' | 'card' | 'to_pay' | 'online' | ''>('');
   const [wantsInvoice, setWantsInvoice] = useState<'yes' | 'no' | ''>('');
   const [, setSignature] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -338,9 +350,10 @@ function FinishModal({
     onDone();
   }
 
-  const PAYMENTS: { key: 'cash' | 'card' | 'to_pay'; label: string }[] = [
+  const PAYMENTS: { key: 'cash' | 'card' | 'to_pay' | 'online'; label: string }[] = [
+    { key: 'online', label: '✅ Payé en ligne' },
     { key: 'cash', label: '💵 Espèces' },
-    { key: 'card', label: '💳 Carte' },
+    { key: 'card', label: '💳 Carte CB' },
     { key: 'to_pay', label: '🔄 À facturer' },
   ];
 
@@ -809,16 +822,19 @@ const styles = StyleSheet.create({
   expressText: { fontSize: 11, fontWeight: '700', color: '#92400E' },
 
   // Navigation
+  mapsBtnRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
   mapsBtn: {
+    flex: 1,
     backgroundColor: '#EFF6FF',
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: 'center',
-    marginTop: 12,
     borderWidth: 1,
     borderColor: '#BFDBFE',
   },
-  mapsBtnText: { fontSize: 14, fontWeight: '600', color: BLUE },
+  mapsBtnPickup: { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' },
+  mapsBtnDropoff: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
+  mapsBtnText: { fontSize: 13, fontWeight: '600', color: BLUE },
 
   // Boutons actions
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },

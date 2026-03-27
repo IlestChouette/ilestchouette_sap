@@ -9,9 +9,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,8 +34,10 @@ export default function LoginScreen() {
 
     if (err) {
       setError('Email ou mot de passe incorrect.');
+      setLoading(false);
+    } else {
+      router.replace('/(tabs)');
     }
-    setLoading(false);
   }
 
   return (

@@ -175,8 +175,11 @@ export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [authErr, setAuthErr] = useState("");
 
+  // Vérification via cookie httpOnly (sécurisé, non bypassable via console)
   useEffect(() => {
-    if (sessionStorage.getItem("admin_authed") === "1") setAuthed(true);
+    fetch("/api/admin/check")
+      .then((r) => { if (r.ok) setAuthed(true); })
+      .catch(() => {});
   }, []);
 
   async function handleLogin() {
@@ -188,7 +191,6 @@ export default function AdminPage() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       if (res.ok) {
-        sessionStorage.setItem("admin_authed", "1");
         setAuthed(true);
       } else {
         setAuthErr("Email ou mot de passe incorrect.");
@@ -196,6 +198,11 @@ export default function AdminPage() {
     } catch {
       setAuthErr("Erreur de connexion.");
     }
+  }
+
+  async function handleLogout() {
+    await fetch("/api/admin/check", { method: "DELETE" });
+    setAuthed(false);
   }
 
   /* ─── Data ─── */

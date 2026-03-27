@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 
+const ADMIN_COOKIE = "iec_admin_auth";
+
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
 
     const validEmail = process.env.ADMIN_EMAIL;
     const validPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+    const adminToken = process.env.ADMIN_COOKIE_TOKEN;
 
-    if (!validEmail || !validPasswordHash) {
+    if (!validEmail || !validPasswordHash || !adminToken) {
       return NextResponse.json({ ok: false }, { status: 500 });
     }
 
@@ -18,7 +21,15 @@ export async function POST(req: Request) {
       String(email).trim().toLowerCase() === validEmail.toLowerCase() &&
       inputHash === validPasswordHash
     ) {
-      return NextResponse.json({ ok: true });
+      const res = NextResponse.json({ ok: true });
+      res.cookies.set(ADMIN_COOKIE, adminToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 8, // 8 heures
+        path: "/",
+      });
+      return res;
     }
 
     return NextResponse.json({ ok: false }, { status: 401 });

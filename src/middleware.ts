@@ -1,21 +1,35 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const COOKIE = "iec_pres_auth";
-// SHA-256 of credentials — never store plaintext
-const VALID_TOKEN = "a3f8b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1";
+const PRES_COOKIE = "iec_pres_auth";
+const ADMIN_COOKIE = "iec_admin_auth";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── Protection /presentation ──────────────────────────
   if (pathname.startsWith("/presentation")) {
     if (pathname === "/presentation/login") return NextResponse.next();
 
-    const token = request.cookies.get(COOKIE)?.value;
-    if (token !== VALID_TOKEN) {
+    const token = request.cookies.get(PRES_COOKIE)?.value;
+    const validToken = process.env.PRESENTATION_COOKIE_TOKEN;
+    if (!validToken || token !== validToken) {
       const loginUrl = new URL("/presentation/login", request.url);
       loginUrl.searchParams.set("from", pathname);
       return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // ── Protection /admin ─────────────────────────────────
+  if (pathname.startsWith("/admin")) {
+    if (pathname === "/admin/login") return NextResponse.next();
+    // Exclure les API routes admin
+    if (pathname.startsWith("/admin") && !pathname.startsWith("/api/admin")) {
+      const token = request.cookies.get(ADMIN_COOKIE)?.value;
+      const validToken = process.env.ADMIN_COOKIE_TOKEN;
+      if (!validToken || token !== validToken) {
+        return NextResponse.redirect(new URL("/admin/login", request.url));
+      }
     }
   }
 
@@ -23,5 +37,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/presentation/:path*"],
+  matcher: ["/presentation/:path*", "/admin/:path*"],
 };

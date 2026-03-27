@@ -4,9 +4,9 @@ import { cookies } from "next/headers";
 import { createHash } from "crypto";
 import { redirect } from "next/navigation";
 
-const VALID_EMAIL = "allo@ilestchouette.fr";
-const VALID_PASSWORD_HASH = createHash("sha256").update("Bogota841219@@").digest("hex");
-const COOKIE_TOKEN = "a3f8b2c1d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1";
+const VALID_EMAIL = process.env.PRESENTATION_EMAIL ?? "";
+const VALID_PASSWORD_HASH = process.env.PRESENTATION_PASSWORD_HASH ?? "";
+const COOKIE_TOKEN = process.env.PRESENTATION_COOKIE_TOKEN ?? "";
 const COOKIE = "iec_pres_auth";
 
 export async function authenticate(formData: FormData) {

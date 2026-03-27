@@ -3,11 +3,14 @@ import { Stack, Redirect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { registerForPushNotifications, savePushToken } from '@/lib/notifications';
 import { playMissionSound } from '@/lib/sound';
 import { useState } from 'react';
+
+const isExpoGo = Constants.appOwnership === 'expo';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -30,8 +33,8 @@ export default function RootLayout() {
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, s) => {
       setSession(s);
 
-      // Quand le coursier se connecte → enregistrer le push token
-      if (s?.user?.email) {
+      // Quand le coursier se connecte → enregistrer le push token (pas sur Expo Go)
+      if (s?.user?.email && !isExpoGo) {
         const token = await registerForPushNotifications();
         if (token) {
           await savePushToken(s.user.email, token);
@@ -40,14 +43,16 @@ export default function RootLayout() {
     });
 
     // Notification reçue quand l'app est AU PREMIER PLAN → son en boucle
-    notifListener.current = Notifications.addNotificationReceivedListener(() => {
-      playMissionSound();
-    });
+    if (!isExpoGo) {
+      notifListener.current = Notifications.addNotificationReceivedListener(() => {
+        playMissionSound();
+      });
 
-    // L'utilisateur TAPE sur une notification (arrière-plan ou fermée) → son en boucle
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(() => {
-      playMissionSound();
-    });
+      // L'utilisateur TAPE sur une notification (arrière-plan ou fermée) → son en boucle
+      responseListener.current = Notifications.addNotificationResponseReceivedListener(() => {
+        playMissionSound();
+      });
+    }
 
     // ── Realtime : nouvelle commande "pending" (toutes sources) ──────────────
     // Ceci couvre les commandes venant de l'app client, du site opérateur,

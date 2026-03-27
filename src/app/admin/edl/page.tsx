@@ -123,7 +123,6 @@ export default function EdlPage() {
   // Filtrer par mois sélectionné
   const missionsDuMois = missions.filter(m => m.date_mission?.startsWith(selectedMois));
   const totalHT = missionsDuMois.reduce((s, m) => s + m.montant_ht, 0);
-  const totalTTC = totalHT * 1.2;
 
   const surfacePreview = parseInt(form.surface_m2) || 0;
   const fdSupPreview = parseFloat(form.fd_sup) || 0;
@@ -233,8 +232,7 @@ export default function EdlPage() {
           <div className="flex items-center gap-4">
             <div className="text-sm text-gray-600">
               <span className="font-bold text-gray-900">{missionsDuMois.length}</span> mission(s) —
-              <span className="font-bold text-orange-600 ml-1">{totalHT.toFixed(2)} € HT</span>
-              <span className="text-gray-400 ml-1">({totalTTC.toFixed(2)} € TTC)</span>
+              <span className="font-bold text-orange-600 ml-1">{totalHT.toFixed(2)} €</span>
             </div>
             <button
               onClick={() => window.open(`/admin/edl/facture/${selectedMois}`, "_blank")}
@@ -259,8 +257,7 @@ export default function EdlPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Surface</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Meublé</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">FD Sup</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Montant HT</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">TTC</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Montant</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>

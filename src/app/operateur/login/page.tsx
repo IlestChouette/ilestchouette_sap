@@ -10,9 +10,27 @@ export default function OperatorLogin() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setMsg("Connexion...");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setMsg("Erreur : " + error.message);
-    else window.location.href = "/operateur";
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setMsg("Erreur : " + error.message);
+      return;
+    }
+
+    // Vérifier que l'utilisateur a bien le rôle "operateur"
+    const { data: roleData } = await supabase
+      .from("operators")
+      .select("id")
+      .eq("email", data.user?.email ?? "")
+      .single();
+
+    if (!roleData) {
+      await supabase.auth.signOut();
+      setMsg("Accès refusé : vous n'êtes pas opérateur.");
+      return;
+    }
+
+    window.location.href = "/operateur";
   }
 
   return (

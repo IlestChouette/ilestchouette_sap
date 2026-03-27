@@ -12,8 +12,16 @@ Deno.serve(async (req) => {
   try {
     const { amount, currency = 'eur' } = await req.json();
 
-    if (!amount || typeof amount !== 'number' || amount < 50) {
-      return new Response(JSON.stringify({ error: 'Montant invalide (minimum 0.50 €)' }), {
+    const amountInt = Math.round(Number(amount));
+
+    if (
+      !amount ||
+      typeof amount !== 'number' ||
+      isNaN(amountInt) ||
+      amountInt < 50 ||       // minimum 0.50 €
+      amountInt > 50000        // maximum 500.00 €
+    ) {
+      return new Response(JSON.stringify({ error: 'Montant invalide (entre 0.50 € et 500.00 €)' }), {
         status: 400,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
@@ -21,7 +29,7 @@ Deno.serve(async (req) => {
 
     // Créer le PaymentIntent Stripe
     const body = new URLSearchParams({
-      amount: String(Math.round(amount)),
+      amount: String(amountInt),
       currency,
       'automatic_payment_methods[enabled]': 'true',
     });
