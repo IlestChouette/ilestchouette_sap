@@ -21,21 +21,13 @@ export function middleware(request: NextRequest) {
   }
 
   // ── Protection /admin ─────────────────────────────────
-  if (pathname.startsWith("/admin")) {
-    if (pathname === "/admin/login") return NextResponse.next();
-    // Exclure les API routes admin
-    if (pathname.startsWith("/admin") && !pathname.startsWith("/api/admin")) {
-      const token = request.cookies.get(ADMIN_COOKIE)?.value;
-      const validToken = process.env.ADMIN_COOKIE_TOKEN;
-      if (!validToken || token !== validToken) {
-        return NextResponse.redirect(new URL("/admin/login", request.url));
-      }
-    }
-  }
+  // La page /admin contient son propre formulaire de login,
+  // le cookie est vérifié via /api/admin/check côté client.
+  // Pas de redirection middleware pour éviter les 404.
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/presentation/:path*", "/admin/:path*"],
+  matcher: ["/presentation/:path*"],
 };
