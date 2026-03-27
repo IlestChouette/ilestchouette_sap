@@ -68,6 +68,7 @@ export default function CommanderScreen() {
   const [userPhone, setUserPhone] = useState('');
   const [savedAddresses, setSavedAddresses] = useState('');
   const [merchants, setMerchants] = useState<any[]>([]);
+  const merchantsRef = useRef<any[]>([]);
 
   useEffect(() => {
     loadAndStart();
@@ -120,6 +121,7 @@ export default function CommanderScreen() {
         }));
       }
 
+      merchantsRef.current = merchantsWithProducts;
       setMerchants(merchantsWithProducts);
       setUserName(name);
       setSavedAddresses(addrStr);
@@ -137,8 +139,14 @@ export default function CommanderScreen() {
       }
 
       await callAgent(initialMessages, name, addrStr, merchantsWithProducts);
-    } catch {
+    } catch (e) {
       setLoading(false);
+      const errMsg: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: '⚠️ Impossible de démarrer. Vérifie ta connexion et réessaie.',
+      };
+      setMessages([errMsg]);
     }
   }
 
@@ -155,7 +163,7 @@ export default function CommanderScreen() {
           language: i18n.language,
           userName: name,
           savedAddresses: addresses,
-          merchants: merchantList ?? merchants,
+          merchants: merchantList ?? merchantsRef.current,
         },
       });
       if (error) {

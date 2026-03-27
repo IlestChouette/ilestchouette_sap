@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 const SHEET_ID = "1It-TOn5Caf8TYjnoc-4rCrMJv2lZE9q1eV4b7FYuAr4";
+const ADMIN_COOKIE = "iec_admin_auth";
 
 function parseCsv(csv: string): Record<string, string>[] {
   const lines = csv.trim().split("\n");
@@ -29,6 +31,14 @@ function parseCsv(csv: string): Record<string, string>[] {
 }
 
 export async function GET() {
+  // Vérifier que l'appelant est un admin authentifié
+  const jar = await cookies();
+  const token = jar.get(ADMIN_COOKIE)?.value;
+  const adminToken = process.env.ADMIN_COOKIE_TOKEN;
+  if (!adminToken || token !== adminToken) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+
   try {
     const [recetesRes, depensesRes] = await Promise.all([
       fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=RECETES`),
