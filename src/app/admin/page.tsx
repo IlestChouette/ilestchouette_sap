@@ -250,18 +250,19 @@ export default function AdminPage() {
 
     async function load() {
       setLoading(true);
-      const [ordRes, assRes, courRes, custRes, merRes] = await Promise.all([
-        supabase.from("orders").select("*").order("created_at", { ascending: false }),
-        supabase.from("assignments").select("*").order("assigned_at", { ascending: false }),
-        supabase.from("couriers").select("*"),
-        supabase.from("customers").select("*").order("created_at", { ascending: false }),
-        supabase.from("merchants").select("*").order("created_at", { ascending: false }),
-      ]);
-      if (ordRes.data) setOrders(ordRes.data as Order[]);
-      if (assRes.data) setAssignments(assRes.data as Assignment[]);
-      if (courRes.data) setCouriers(courRes.data as Courier[]);
-      if (custRes.data) setCustomers(custRes.data as Customer[]);
-      if (merRes.data) setMerchants(merRes.data);
+      try {
+        const res = await fetch("/api/admin/data");
+        if (res.ok) {
+          const d = await res.json();
+          setOrders(d.orders ?? []);
+          setAssignments(d.assignments ?? []);
+          setCouriers(d.couriers ?? []);
+          setCustomers(d.customers ?? []);
+          setMerchants(d.merchants ?? []);
+        }
+      } catch (e) {
+        console.error("Erreur chargement admin:", e);
+      }
       setLoading(false);
     }
 
