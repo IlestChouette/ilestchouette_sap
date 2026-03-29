@@ -59,8 +59,12 @@ export default function LoginScreen() {
     setLoading(true); setError('');
     const formattedPhone = phone.startsWith('+') ? phone : `+33${phone.replace(/^0/, '')}`;
     const { error: err } = await supabase.auth.verifyOtp({ phone: formattedPhone, token: otp, type: 'sms' });
-    if (err) setError(t('auth.error_otp'));
-    setLoading(false);
+    if (err) {
+      setError(t('auth.error_otp'));
+      setLoading(false);
+    } else {
+      router.replace('/(tabs)');
+    }
   }
 
   return (

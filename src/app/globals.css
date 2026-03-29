@@ -62,17 +62,27 @@ body {
   display: inline-block;
   animation: marquee 20s linear infinite;
 }
-/* === Impression PDF comptabilité === */
+/* === Impression PDF === */
 @media print {
-  body > * { display: none !important; }
-  #compta-print,
-  #compta-print * { display: revert !important; }
-  #compta-print {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%;
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    font-size: 12px;
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
+
+  /* Masquer les éléments de navigation */
+  nav, aside, header[role="banner"], .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: white !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Éviter les coupures de page dans les tableaux */
+  table { page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
 }

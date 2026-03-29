@@ -273,11 +273,24 @@ function FinishModal({
   const [, setSignature] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [codeAttempts, setCodeAttempts] = useState(0);
   const sigRef = useRef<any>(null);
+
+  const MAX_ATTEMPTS = 5;
 
   function handleValidateForm() {
     if (validationCode && code !== validationCode) {
-      setError('Code de validation incorrect.');
+      const attempts = codeAttempts + 1;
+      setCodeAttempts(attempts);
+      if (attempts >= MAX_ATTEMPTS) {
+        setError(`Code incorrect. Trop de tentatives — contacte le client.`);
+      } else {
+        setError(`Code incorrect. ${MAX_ATTEMPTS - attempts} tentative(s) restante(s).`);
+      }
+      return;
+    }
+    if (codeAttempts >= MAX_ATTEMPTS) {
+      setError('Trop de tentatives. Contacte le client pour obtenir le code.');
       return;
     }
     if (!payment) { setError('Choisis le mode de paiement.'); return; }
@@ -326,10 +339,12 @@ function FinishModal({
     if (err1) { setError('Erreur lors de la clôture.'); setLoading(false); return; }
 
     // 3. Mettre à jour la commande
-    await supabase
+    const { error: err2 } = await supabase
       .from('orders')
       .update({ status: 'terminee', wants_invoice: wantsInvoiceBool })
       .eq('id', orderId);
+
+    if (err2) { setError('Erreur mise à jour commande.'); setLoading(false); return; }
 
     // 4. Enregistrer l'événement
     const { data: session } = await supabase.auth.getSession();

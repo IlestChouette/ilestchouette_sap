@@ -127,7 +127,13 @@ export default function ProfilScreen() {
   async function handleLogout() {
     Alert.alert(t('auth.logout'), t('auth.logout_confirm'), [
       { text: t('auth.cancel'), style: 'cancel' },
-      { text: t('auth.logout'), style: 'destructive', onPress: () => supabase.auth.signOut() },
+      {
+        text: t('auth.logout'), style: 'destructive', onPress: async () => {
+          // Effacer les données locales avant déconnexion
+          await AsyncStorage.multiRemove(['skipped_orders', 'pending_service', 'onboarding_done']);
+          await supabase.auth.signOut();
+        }
+      },
     ]);
   }
 

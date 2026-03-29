@@ -17,14 +17,15 @@ export default function OperatorLogin() {
       return;
     }
 
-    // Vérifier que l'utilisateur a bien le rôle "operateur"
-    const { data: roleData } = await supabase
-      .from("operators")
-      .select("id")
-      .eq("email", data.user?.email ?? "")
-      .single();
+    // Vérifier que l'utilisateur a bien le rôle "operateur" via l'API
+    const check = await fetch("/api/operateur/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: data.user?.email }),
+    });
+    const { isOperator } = await check.json();
 
-    if (!roleData) {
+    if (!isOperator) {
       await supabase.auth.signOut();
       setMsg("Accès refusé : vous n'êtes pas opérateur.");
       return;

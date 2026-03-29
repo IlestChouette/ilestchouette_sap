@@ -56,6 +56,7 @@ export default function CommanderScreen() {
   const router = useRouter();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const flatListRef = useRef<FlatList>(null);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -76,8 +77,10 @@ export default function CommanderScreen() {
 
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
     }
+    return () => { if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current); };
   }, [messages, loading]);
 
   async function loadAndStart() {

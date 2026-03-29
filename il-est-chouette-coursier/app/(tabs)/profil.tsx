@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { supabase } from '@/lib/supabase';
+import { stopMissionSound } from '@/lib/sound';
 import type { Availability } from '@/lib/types';
 
 const BLUE = '#1B5E9B';
@@ -218,7 +219,12 @@ export default function ProfilScreen() {
   async function handleLogout() {
     Alert.alert('Déconnexion', 'Veux-tu vraiment te déconnecter ?', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Déconnecter', style: 'destructive', onPress: () => supabase.auth.signOut() },
+      {
+        text: 'Déconnecter', style: 'destructive', onPress: async () => {
+          await stopMissionSound();
+          await supabase.auth.signOut();
+        }
+      },
     ]);
   }
 

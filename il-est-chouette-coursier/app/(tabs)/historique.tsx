@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -29,36 +29,55 @@ function statusLabel(status?: string | null) {
   }
 }
 
+const PAGE_SIZE = 20;
+
 export default function HistoriqueScreen() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [totalGagne, setTotalGagne] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const [userEmail, setUserEmail] = useState('');
 
-  useEffect(() => { loadData(); }, []);
+  const totalGagne = useMemo(() =>
+    assignments
+      .filter((a) => a.status === 'terminee' && a.order)
+      .reduce((sum, a) => sum + (a.order!.price_total * 0.65), 0),
+    [assignments]
+  );
 
-  async function loadData() {
+  useEffect(() => { loadData(0, true); }, []);
+
+  async function loadData(pageIndex = 0, reset = false) {
     const { data: sessionData } = await supabase.auth.getSession();
-    const userEmail = sessionData.session?.user?.email ?? '';
+    const email = sessionData.session?.user?.email ?? '';
+    if (email) setUserEmail(email);
 
     const { data, error } = await supabase
       .from('assignments')
       .select('*, order:orders(*)')
-      .eq('courier_email', userEmail)
+      .eq('courier_email', email)
       .in('status', ['terminee', 'annulee', 'refusee'])
-      .order('assigned_at', { ascending: false });
+      .order('assigned_at', { ascending: false })
+      .range(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE - 1);
 
     if (!error && data) {
       const list = data as Assignment[];
-      setAssignments(list);
-      const total = list
-        .filter((a) => a.status === 'terminee' && a.order)
-        .reduce((sum, a) => sum + (a.order!.price_total * 0.65), 0);
-      setTotalGagne(total);
+      setAssignments(prev => reset ? list : [...prev, ...list]);
+      setHasMore(list.length === PAGE_SIZE);
+      setPage(pageIndex);
     }
     setLoading(false);
     setRefreshing(false);
+    setLoadingMore(false);
   }
+
+  const handleLoadMore = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    loadData(page + 1);
+  }, [loadingMore, hasMore, page]);
 
   if (loading) {
     return (
@@ -81,53 +100,55 @@ export default function HistoriqueScreen() {
         <Text style={styles.totalValue}>{totalGagne.toFixed(2)} €</Text>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={assignments}
+        keyExtractor={(a) => a.id}
         contentContainerStyle={styles.list}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); loadData(); }}
+            onRefresh={() => { setRefreshing(true); loadData(0, true); }}
             tintColor={BLUE}
           />
         }
-      >
-        {assignments.length === 0 ? (
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+        ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>📋</Text>
             <Text style={styles.emptyTitle}>Aucune mission passée</Text>
           </View>
-        ) : (
-          assignments.map((a) => {
-            const { label, color } = statusLabel(a.status);
-            return (
-              <View key={a.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardDate}>{formatDate(a.assigned_at)}</Text>
-                  <View style={[styles.badge, { backgroundColor: color + '20' }]}>
-                    <Text style={[styles.badgeText, { color }]}>{label}</Text>
-                  </View>
+        }
+        ListFooterComponent={loadingMore ? <ActivityIndicator color={BLUE} style={{ marginVertical: 16 }} /> : null}
+        renderItem={({ item: a }) => {
+          const { label, color } = statusLabel(a.status);
+          return (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardDate}>{formatDate(a.assigned_at)}</Text>
+                <View style={[styles.badge, { backgroundColor: color + '20' }]}>
+                  <Text style={[styles.badgeText, { color }]}>{label}</Text>
                 </View>
-
-                {a.order ? (
-                  <>
-                    <Text style={styles.address} numberOfLines={1}>
-                      📍 {a.order.pickup_place_name || a.order.pickup_address}
-                    </Text>
-                    <Text style={styles.address} numberOfLines={1}>
-                      🏁 {a.order.dropoff_address}
-                    </Text>
-                    {a.status === 'terminee' && (
-                      <Text style={styles.earned}>
-                        +{(a.order.price_total * 0.65).toFixed(2)} €
-                      </Text>
-                    )}
-                  </>
-                ) : null}
               </View>
-            );
-          })
-        )}
-      </ScrollView>
+              {a.order ? (
+                <>
+                  <Text style={styles.address} numberOfLines={1}>
+                    📍 {a.order.pickup_place_name || a.order.pickup_address}
+                  </Text>
+                  <Text style={styles.address} numberOfLines={1}>
+                    🏁 {a.order.dropoff_address}
+                  </Text>
+                  {a.status === 'terminee' && (
+                    <Text style={styles.earned}>
+                      +{(a.order.price_total * 0.65).toFixed(2)} €
+                    </Text>
+                  )}
+                </>
+              ) : null}
+            </View>
+          );
+        }}
+      />
     </View>
   );
 }
