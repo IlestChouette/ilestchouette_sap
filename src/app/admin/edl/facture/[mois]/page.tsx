@@ -35,9 +35,9 @@ export default function FactureEdlPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (sessionStorage.getItem("admin_authed") !== "1") {
-      router.replace("/admin");
-    }
+    fetch("/api/admin/check")
+      .then((r) => { if (!r.ok) router.replace("/admin"); })
+      .catch(() => router.replace("/admin"));
   }, []);
 
   const [annee, moisNum] = mois.split("-");

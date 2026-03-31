@@ -47,11 +47,9 @@ export default function EdlPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (sessionStorage.getItem("admin_authed") !== "1") {
-      window.location.href = "/admin";
-    } else {
-      setAuthed(true);
-    }
+    fetch("/api/admin/check")
+      .then((r) => { if (r.ok) setAuthed(true); else window.location.href = "/admin"; })
+      .catch(() => { window.location.href = "/admin"; });
   }, []);
   const [showForm, setShowForm] = useState(false);
   const [selectedMois, setSelectedMois] = useState(() => {
