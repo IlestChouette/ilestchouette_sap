@@ -355,7 +355,11 @@ export default function CommanderScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: BG }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
+    >
 
       {/* Header */}
       <View style={styles.header}>
@@ -375,6 +379,8 @@ export default function CommanderScreen() {
         data={messages}
         keyExtractor={(m) => m.id}
         contentContainerStyle={styles.chatContainer}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         renderItem={({ item }) => (
           <View style={[styles.row, item.role === 'user' ? styles.rowUser : styles.rowAgent]}>
             {item.role === 'assistant' && (
@@ -475,8 +481,8 @@ export default function CommanderScreen() {
             multiline
             maxLength={500}
             returnKeyType="send"
-            blurOnSubmit={false}
-            onSubmitEditing={Platform.OS !== 'ios' ? sendMessage : undefined}
+            blurOnSubmit={Platform.OS === 'android'}
+            onSubmitEditing={sendMessage}
           />
           <Pressable
             style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}

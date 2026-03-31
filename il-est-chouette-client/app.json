@@ -18,7 +18,8 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#FFF7ED"
       },
-      "edgeToEdgeEnabled": false
+      "edgeToEdgeEnabled": false,
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "output": "static",
