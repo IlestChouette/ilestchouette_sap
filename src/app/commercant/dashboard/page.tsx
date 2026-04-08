@@ -102,17 +102,30 @@ export default function MerchantDashboard() {
   }, [merchant?.id]);
 
   async function loadMerchantData(userId: string) {
-    const [{ data: m }, { data: p }, { data: o }] = await Promise.all([
-      supabase.from("merchants").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("merchant_products").select("*").eq("merchant_id",
-        (await supabase.from("merchants").select("id").eq("user_id", userId).maybeSingle()).data?.id ?? ""
-      ).order("category"),
-      supabase.from("merchant_orders").select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone)")
-        .eq("merchant_id",
-          (await supabase.from("merchants").select("id").eq("user_id", userId).maybeSingle()).data?.id ?? ""
-        ).order("created_at", { ascending: false }).limit(50),
-    ]);
+    // 1. Chercher par user_id
+    let { data: m } = await supabase.from("merchants").select("*").eq("user_id", userId).maybeSingle();
+
+    // 2. Si pas trouvé, chercher par email et auto-lier
+    if (!m) {
+      const { data: userData } = await supabase.auth.getUser();
+      const email = userData.user?.email;
+      if (email) {
+        const { data: byEmail } = await supabase.from("merchants").select("*").eq("email", email).maybeSingle();
+        if (byEmail) {
+          await supabase.from("merchants").update({ user_id: userId }).eq("id", byEmail.id);
+          m = { ...byEmail, user_id: userId };
+        }
+      }
+    }
+
+    if (!m) { setLoading(false); return; }
     setMerchant(m as Merchant);
+
+    const [{ data: p }, { data: o }] = await Promise.all([
+      supabase.from("merchant_products").select("*").eq("merchant_id", m.id).order("category"),
+      supabase.from("merchant_orders").select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone)")
+        .eq("merchant_id", m.id).order("created_at", { ascending: false }).limit(50),
+    ]);
     setProducts((p ?? []) as Product[]);
     setOrders((o ?? []) as MerchantOrder[]);
     setLoading(false);
