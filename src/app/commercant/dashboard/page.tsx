@@ -103,7 +103,7 @@ export default function MerchantDashboard() {
 
   async function loadMerchantData(userId: string) {
     // 1. Chercher par user_id
-    let { data: m } = await supabase.from("merchants").select("*").eq("user_id", userId).maybeSingle();
+    let { data: m } = await supabase.from("merchants").select("*").eq("user_id", userId).limit(1).maybeSingle();
 
     // 2. Si pas trouvé, chercher par email et auto-lier
     if (!m) {
@@ -230,8 +230,20 @@ export default function MerchantDashboard() {
   }
 
   if (!merchant) return (
-    <div className="min-h-screen flex items-center justify-center text-gray-500">
-      Aucun commerce associé à ce compte.
+    <div className="min-h-screen flex items-center justify-center bg-orange-50 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md text-center">
+        <div className="text-4xl mb-3">🏪</div>
+        <h2 className="text-lg font-bold text-gray-900 mb-2">Aucun commerce associé</h2>
+        <p className="text-sm text-gray-500 mb-1">Compte connecté :</p>
+        <p className="text-sm font-semibold text-gray-700 mb-6">{session?.user?.email}</p>
+        <p className="text-sm text-gray-400 mb-6">Ce compte n&apos;est pas encore lié à un commerce. Contactez-nous : allo@ilestchouette.fr</p>
+        <button
+          onClick={() => supabase.auth.signOut().then(() => setSession(null))}
+          className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 transition"
+        >
+          Se déconnecter
+        </button>
+      </div>
     </div>
   );
 
