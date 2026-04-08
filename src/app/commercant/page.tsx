@@ -56,16 +56,19 @@ export default function CommercantPage() {
     setSubmitting(true);
     setError("");
     try {
-      // 1. Créer le compte Supabase Auth (ignoré si email déjà existant)
-      await supabase.auth.signUp({
+      // 1. Créer le compte Supabase Auth
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
       });
+      if (authErr) throw new Error(authErr.message);
+      if (!authData.user) throw new Error("Cet email est déjà utilisé. Connectez-vous directement sur le dashboard.");
+      const userId = authData.user.id;
 
-      // 2. Créer le profil commerçant (user_id lié au 1er login via auto-link email)
+      // 2. Créer le profil commerçant lié au compte
       const { data: merchant, error: mErr } = await supabase
         .from("merchants")
-        .insert([{ name, address, category, phone, email: email.trim().toLowerCase(), description, opening_hours: openingHours, siret: siret || null, status: "pending", accepted_terms_at: new Date().toISOString(), user_id: null }])
+        .insert([{ name, address, category, phone, email: email.trim().toLowerCase(), description, opening_hours: openingHours, siret: siret || null, status: "pending", accepted_terms_at: new Date().toISOString(), user_id: userId }])
         .select("id")
         .single();
 
