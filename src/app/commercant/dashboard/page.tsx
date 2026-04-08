@@ -170,12 +170,13 @@ export default function MerchantDashboard() {
       }).eq("id", editingProduct.id);
       setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? { ...p, ...editingProduct } as Product : p));
     } else {
-      const { data } = await supabase.from("merchant_products").insert([{
+      const { data, error } = await supabase.from("merchant_products").insert([{
         merchant_id: merchant.id, name: editingProduct.name,
         description: editingProduct.description, price: editingProduct.price,
         category: editingProduct.category, available: true,
         image_url: editingProduct.image_url ?? null,
       }]).select().single();
+      if (error) { alert("Erreur : " + error.message); setSavingProduct(false); return; }
       if (data) setProducts((prev) => [...prev, data as Product]);
     }
     setEditingProduct(null);
