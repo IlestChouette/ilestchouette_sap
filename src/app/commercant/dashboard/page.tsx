@@ -163,11 +163,12 @@ export default function MerchantDashboard() {
     if (!editingProduct || !merchant) return;
     setSavingProduct(true);
     if (editingProduct.id) {
-      await supabase.from("merchant_products").update({
+      const { error } = await supabase.from("merchant_products").update({
         name: editingProduct.name, description: editingProduct.description,
         price: editingProduct.price, category: editingProduct.category,
         available: editingProduct.available, image_url: editingProduct.image_url ?? null,
       }).eq("id", editingProduct.id);
+      if (error) { alert("Erreur modification : " + error.message); setSavingProduct(false); return; }
       setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? { ...p, ...editingProduct } as Product : p));
     } else {
       const { data, error } = await supabase.from("merchant_products").insert([{
@@ -185,7 +186,8 @@ export default function MerchantDashboard() {
 
   async function deleteProduct(id: string) {
     if (!confirm("Supprimer ce produit ?")) return;
-    await supabase.from("merchant_products").delete().eq("id", id);
+    const { error } = await supabase.from("merchant_products").delete().eq("id", id);
+    if (error) { alert("Erreur suppression : " + error.message); return; }
     setProducts((prev) => prev.filter((p) => p.id !== id));
   }
 
