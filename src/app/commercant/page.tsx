@@ -29,6 +29,7 @@ export default function CommercantPage() {
   const [category, setCategory] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [description, setDescription] = useState("");
   const [openingHours, setOpeningHours] = useState("");
   const [siret, setSiret] = useState("");
@@ -55,9 +56,18 @@ export default function CommercantPage() {
     setSubmitting(true);
     setError("");
     try {
+      // 1. Créer le compte Supabase Auth
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (authErr) throw new Error(authErr.message);
+      const userId = authData.user?.id;
+
+      // 2. Créer le profil commerçant lié au compte
       const { data: merchant, error: mErr } = await supabase
         .from("merchants")
-        .insert([{ name, address, category, phone, email, description, opening_hours: openingHours, siret: siret || null, status: "pending", accepted_terms_at: new Date().toISOString() }])
+        .insert([{ name, address, category, phone, email: email.trim().toLowerCase(), description, opening_hours: openingHours, siret: siret || null, status: "pending", accepted_terms_at: new Date().toISOString(), user_id: userId ?? null }])
         .select("id")
         .single();
 
@@ -221,6 +231,7 @@ export default function CommercantPage() {
                 <Field label="Email *" value={email} onChange={setEmail} placeholder="contact@pizzacresci.fr" type="email" />
                 <Field label="Téléphone" value={phone} onChange={setPhone} placeholder="04 93 XX XX XX" />
               </div>
+              <Field label="Mot de passe (pour votre espace commerçant) *" value={password} onChange={setPassword} placeholder="Minimum 8 caractères" type="password" />
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Description courte</label>
@@ -235,7 +246,7 @@ export default function CommercantPage() {
               <Field label="Numéro SIRET *" value={siret} onChange={setSiret} placeholder="362 521 879 00034" />
 
               <button onClick={() => setStep(2)}
-                disabled={!name || !category || !address || !email || !siret}
+                disabled={!name || !category || !address || !email || !siret || password.length < 8}
                 className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 disabled:opacity-40 transition">
                 Continuer →
               </button>
