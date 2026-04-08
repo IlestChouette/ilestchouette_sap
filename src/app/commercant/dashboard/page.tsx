@@ -431,8 +431,8 @@ export default function MerchantDashboard() {
                     className={`text-xs font-semibold px-2 py-1 rounded-full transition ${p.available ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                     {p.available ? "Dispo" : "Indispo"}
                   </button>
-                  <button onClick={() => setEditingProduct(p)} className="text-gray-400 hover:text-gray-600">✏️</button>
-                  <button onClick={() => deleteProduct(p.id)} className="text-gray-400 hover:text-red-500">🗑️</button>
+                  <button onClick={() => setEditingProduct(p)} className="bg-orange-100 text-orange-600 hover:bg-orange-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Modifier</button>
+                  <button onClick={() => deleteProduct(p.id)} className="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Suppr.</button>
                 </div>
               </div>
             ))}
