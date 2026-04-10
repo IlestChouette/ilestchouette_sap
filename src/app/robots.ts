@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/admin", "/operateur", "/commercant/dashboard", "/api/"],
       },
     ],
-    sitemap: "https://www.ilestchouette.fr/sitemap.xml",
+    sitemap: "https://ilestchouette.fr/sitemap.xml",
   };
 }
