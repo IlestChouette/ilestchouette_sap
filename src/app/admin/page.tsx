@@ -221,6 +221,7 @@ export default function AdminPage() {
   const [cancelReason, setCancelReason] = useState("");
 
   /* ─── Comptabilité ─── */
+  const [edlMissions, setEdlMissions] = useState<{ montant_ht: number; date_paiement: string | null; paye: boolean }[]>([]);
   const [compta, setCompta] = useState<{ recetes: Record<string, string>[]; depenses: Record<string, string>[] } | null>(null);
   const [comptaTab, setComptaTab] = useState<"resume" | "recetes" | "depenses">("resume");
   const [comptaLoading, setComptaLoading] = useState(false);
@@ -229,9 +230,13 @@ export default function AdminPage() {
   async function loadCompta() {
     setComptaLoading(true);
     try {
-      const res = await fetch("/api/sheets");
+      const [res, { data: edl }] = await Promise.all([
+        fetch("/api/sheets"),
+        supabase.from("edl_missions").select("montant_ht, date_paiement, paye").eq("paye", true),
+      ]);
       const data = await res.json();
       setCompta(data);
+      setEdlMissions(edl ?? []);
     } catch (e) {
       console.error(e);
     }
@@ -1117,7 +1122,11 @@ export default function AdminPage() {
                 .filter((r) => (r["Date"] ?? "").includes(comptaYear.slice(2)))
                 .reduce((s, r) => s + (parseFloat(r["Montant"] ?? "0") || 0), 0);
 
-              const totalRevenue = platformRevenue + manualRevenue;
+              const edlRevenue = edlMissions
+                .filter((m) => m.date_paiement?.startsWith(comptaYear))
+                .reduce((s, m) => s + m.montant_ht, 0);
+
+              const totalRevenue = platformRevenue + manualRevenue + edlRevenue;
 
               const totalDepenses = (compta?.depenses ?? [])
                 .filter((d) => (d["Date"] ?? "").includes(comptaYear.slice(2)))
@@ -1166,6 +1175,10 @@ export default function AdminPage() {
                       <div className="bg-blue-50 rounded-2xl p-4 text-center">
                         <p className="text-xs text-blue-600 font-semibold uppercase mb-1">Recettes manuelles</p>
                         <p className="text-2xl font-bold text-blue-700">{fmtEuro(manualRevenue)}</p>
+                      </div>
+                      <div className="bg-purple-50 rounded-2xl p-4 text-center">
+                        <p className="text-xs text-purple-600 font-semibold uppercase mb-1">EDL payées</p>
+                        <p className="text-2xl font-bold text-purple-700">{fmtEuro(edlRevenue)}</p>
                       </div>
                       <div className="bg-red-50 rounded-2xl p-4 text-center">
                         <p className="text-xs text-red-600 font-semibold uppercase mb-1">Dépenses</p>

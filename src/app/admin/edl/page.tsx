@@ -56,6 +56,8 @@ type EdlMission = {
   heure_debut: string | null;
   heure_fin: string | null;
   gestionnaire: string | null;
+  paye: boolean;
+  date_paiement: string | null;
 };
 
 const emptyForm = {
@@ -169,8 +171,18 @@ export default function EdlPage() {
     loadMissions();
   }
 
+  async function togglePaye(m: EdlMission) {
+    const newPaye = !m.paye;
+    await supabase.from("edl_missions").update({
+      paye: newPaye,
+      date_paiement: newPaye ? new Date().toISOString().split("T")[0] : null,
+    }).eq("id", m.id);
+    loadMissions();
+  }
+
   const missionsDuMois = missions.filter(m => m.date_mission?.startsWith(selectedMois));
   const totalHT = missionsDuMois.reduce((s, m) => s + m.montant_ht, 0);
+  const totalPaye = missionsDuMois.filter(m => m.paye).reduce((s, m) => s + m.montant_ht, 0);
 
   const surface = parseInt(form.surface_m2) || 0;
   const fdSup = parseFloat(form.fd_sup) || 0;
@@ -301,9 +313,10 @@ export default function EdlPage() {
             />
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-sm text-gray-600">
-              <span className="font-bold text-gray-900">{missionsDuMois.length}</span> mission(s) —
-              <span className="font-bold text-orange-600 ml-1">{totalHT.toFixed(2)} €</span>
+            <div className="text-sm text-gray-600 flex gap-4">
+              <span><span className="font-bold text-gray-900">{missionsDuMois.length}</span> mission(s)</span>
+              <span>Total : <span className="font-bold text-orange-600">{totalHT.toFixed(2)} €</span></span>
+              <span>Payé : <span className="font-bold text-green-600">{totalPaye.toFixed(2)} €</span></span>
             </div>
             <button
               onClick={() => window.open(`/admin/edl/facture/${selectedMois}`, "_blank")}
@@ -329,6 +342,7 @@ export default function EdlPage() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Meublé</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">FD Sup</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">HT</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Statut</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -354,6 +368,14 @@ export default function EdlPage() {
                   <td className="px-4 py-3">{m.meuble ? "✓" : "-"}</td>
                   <td className="px-4 py-3">{m.fd_sup > 0 ? `${m.fd_sup} €` : "-"}</td>
                   <td className="px-4 py-3 font-semibold text-orange-600">{m.montant_ht.toFixed(2)} €</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => togglePaye(m)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${m.paye ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                    >
+                      {m.paye ? `✓ Payé${m.date_paiement ? ` ${new Date(m.date_paiement).toLocaleDateString("fr-FR")}` : ""}` : "En attente"}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 flex gap-2">
                     <button onClick={() => openEdit(m)} className="text-orange-500 hover:text-orange-700 text-xs font-semibold">Modifier</button>
                     <button onClick={() => handleDelete(m.id)} className="text-red-400 hover:text-red-600 text-xs">Suppr.</button>
