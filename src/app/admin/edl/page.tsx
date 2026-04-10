@@ -329,8 +329,8 @@ export default function EdlPage() {
         </div>
 
         {/* Liste des missions */}
-        <div className="bg-white rounded-2xl shadow overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-2xl shadow overflow-x-auto">
+          <table className="w-full text-sm min-w-max">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">N° Mission</th>
@@ -376,7 +376,7 @@ export default function EdlPage() {
                       {m.paye ? `✓ Payé${m.date_paiement ? ` ${new Date(m.date_paiement).toLocaleDateString("fr-FR")}` : ""}` : "En attente"}
                     </button>
                   </td>
-                  <td className="px-4 py-3 flex gap-2">
+                  <td className="px-4 py-3 whitespace-nowrap flex gap-2">
                     <button onClick={() => openEdit(m)} className="text-orange-500 hover:text-orange-700 text-xs font-semibold">Modifier</button>
                     <button onClick={() => handleDelete(m.id)} className="text-red-400 hover:text-red-600 text-xs">Suppr.</button>
                   </td>
