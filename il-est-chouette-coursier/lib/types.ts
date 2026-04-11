@@ -37,6 +37,7 @@ export type Assignment = {
   status?: AssignmentStatus | null;
   payment_method?: string | null;
   validated_with_code?: boolean | null;
+  route_duration_seconds?: number | null;
   order?: Order;
 };
 

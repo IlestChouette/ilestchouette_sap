@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { stopMissionSound } from '@/lib/sound';
 import type { Availability } from '@/lib/types';
@@ -26,6 +27,14 @@ function formatRange(start: string, end: string) {
   const h1 = s.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   const h2 = e.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   return `${day}  ${h1} → ${h2}`;
+}
+
+function formatDuration(seconds: number): string {
+  if (!seconds) return '0min';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}min`;
+  return `${m}min`;
 }
 
 function formatPickerDate(d: Date) {
@@ -56,9 +65,16 @@ function DatePickerButton({
 }
 
 export default function ProfilScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [availabilities, setAvailabilities] = useState<Availability[]>([]);
   const [loading, setLoading] = useState(true);
+  const [weekSeconds, setWeekSeconds] = useState(0);
+  const [monthSeconds, setMonthSeconds] = useState(0);
+  const [weekMissions, setWeekMissions] = useState(0);
+  const [monthMissions, setMonthMissions] = useState(0);
+  const [weekEarnings, setWeekEarnings] = useState(0);
+  const [monthEarnings, setMonthEarnings] = useState(0);
   const [adding, setAdding] = useState(false);
   const [savingAvail, setSavingAvail] = useState(false);
   const [availErr, setAvailErr] = useState('');
@@ -95,6 +111,36 @@ export default function ProfilScreen() {
       .order('start', { ascending: true });
 
     if (data) setAvailabilities(data as Availability[]);
+
+    // Charger les stats de trajet
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const { data: stats } = await supabase
+      .from('assignments')
+      .select('route_duration_seconds,assigned_at,order:orders(price_total)')
+      .eq('courier_email', userEmail)
+      .eq('status', 'terminee');
+
+    if (stats) {
+      let wSecs = 0, mSecs = 0, wCount = 0, mCount = 0, wEarn = 0, mEarn = 0;
+      for (const s of stats) {
+        const d = new Date(s.assigned_at);
+        const price = (s.order as { price_total?: number } | null)?.price_total ?? 0;
+        if (d >= startOfMonth) { if (s.route_duration_seconds) mSecs += s.route_duration_seconds; mCount++; mEarn += price; }
+        if (d >= startOfWeek) { if (s.route_duration_seconds) wSecs += s.route_duration_seconds; wCount++; wEarn += price; }
+      }
+      setWeekSeconds(wSecs);
+      setMonthSeconds(mSecs);
+      setWeekMissions(wCount);
+      setMonthMissions(mCount);
+      setWeekEarnings(wEarn);
+      setMonthEarnings(mEarn);
+    }
+
     setLoading(false);
   }
 
@@ -223,6 +269,7 @@ export default function ProfilScreen() {
         text: 'Déconnecter', style: 'destructive', onPress: async () => {
           await stopMissionSound();
           await supabase.auth.signOut();
+          router.replace('/login');
         }
       },
     ]);
@@ -244,6 +291,22 @@ export default function ProfilScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
+
+        {/* Stats de trajet */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statPeriod}>Cette semaine</Text>
+            <Text style={styles.statTime}>{formatDuration(weekSeconds)}</Text>
+            <Text style={styles.statEarnings}>{weekEarnings.toFixed(2)} €</Text>
+            <Text style={styles.statMissions}>{weekMissions} mission{weekMissions > 1 ? 's' : ''}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statPeriod}>Ce mois</Text>
+            <Text style={styles.statTime}>{formatDuration(monthSeconds)}</Text>
+            <Text style={styles.statEarnings}>{monthEarnings.toFixed(2)} €</Text>
+            <Text style={styles.statMissions}>{monthMissions} mission{monthMissions > 1 ? 's' : ''}</Text>
+          </View>
+        </View>
 
         {/* Disponibilités */}
         <View style={styles.section}>
@@ -404,6 +467,14 @@ const styles = StyleSheet.create({
   deleteBtn: { fontSize: 18, paddingLeft: 8 },
   logoutBtn: { backgroundColor: '#FEE2E2', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
   logoutText: { color: RED, fontWeight: '700', fontSize: 15 },
+
+  // Stats de trajet
+  statsRow: { flexDirection: 'row', gap: 12 },
+  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  statPeriod: { fontSize: 12, fontWeight: '600', color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  statTime: { fontSize: 22, fontWeight: '800', color: BLUE, marginBottom: 2 },
+  statEarnings: { fontSize: 18, fontWeight: '700', color: GREEN, marginBottom: 2 },
+  statMissions: { fontSize: 12, color: '#9CA3AF' },
 
   // iOS picker overlay
   iosOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end', zIndex: 100 },

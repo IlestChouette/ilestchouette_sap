@@ -288,6 +288,8 @@ export default function AdminPage() {
     if (!cancelOrderId) return;
     const reason = cancelReason.trim() || "admin";
     await supabase.from("orders").update({ status: "annulee", cancellation_reason: reason }).eq("id", cancelOrderId);
+    // Annuler aussi les assignments actifs pour que la mission disparaisse de l'app coursier
+    await supabase.from("assignments").update({ status: "annulee" }).eq("order_id", cancelOrderId).in("status", ["assigned", "acceptee"]);
     setOrders((prev) => prev.map((o) => o.id === cancelOrderId ? { ...o, status: "annulee" } : o));
     setCancelOrderId(null);
     setCancelReason("");

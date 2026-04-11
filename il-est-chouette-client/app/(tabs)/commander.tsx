@@ -266,10 +266,18 @@ export default function CommanderScreen() {
         merchantDisplayName: 'Il est chouette',
         style: 'alwaysLight',
         primaryButtonLabel: `Payer ${grandTotal} €`,
+        applePay: { merchantCountryCode: 'FR' },
+        googlePay: { merchantCountryCode: 'FR', testEnv: false },
       });
-      if (initErr) { Alert.alert('Erreur', initErr.message); setPlacing(false); return; }
+      if (initErr) { Alert.alert('Erreur paiement', initErr.message); setPlacing(false); return; }
       const { error: payErr } = await presentPaymentSheet();
-      if (payErr) { setPlacing(false); return; }
+      if (payErr) {
+        if (payErr.code !== 'Canceled') {
+          Alert.alert('Paiement échoué', payErr.message);
+        }
+        setPlacing(false);
+        return;
+      }
       await placeOrders(data.paymentIntentId);
     } catch {
       Alert.alert('Erreur', 'Paiement impossible, réessayez');

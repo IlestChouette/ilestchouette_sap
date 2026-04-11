@@ -12,7 +12,13 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://smvoupxtiilnhecgcxxh.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtdm91cHh0aWlsbmhlY2djeHhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NTk2MjksImV4cCI6MjA3ODMzNTYyOX0.nGKz5rhPoELQNbheTgdfzEmnmRtCq3BBpn-1loQjlP0",
+        "EXPO_PUBLIC_WEB_URL": "https://www.ilestchouette.fr",
+        "EXPO_PUBLIC_PROJECT_ID": "f958ed8f-54aa-4d1a-9302-555b09637726"
+      }
     }
   },
   "submit": {

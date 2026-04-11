@@ -14,6 +14,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureCanvas from 'react-native-signature-canvas';
 import { supabase } from '@/lib/supabase';
 import { stopMissionSound } from '@/lib/sound';
@@ -23,6 +25,67 @@ const BLUE = '#1B5E9B';
 const GREEN = '#16A34A';
 const RED = '#DC2626';
 const ORANGE = '#EA580C';
+
+/* ---- Carte OpenStreetMap intégrée (comme Uber) ---- */
+function InlineMap({ pickup, dropoff }: { pickup: string; dropoff: string }) {
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body{margin:0;padding:0;background:#e8f0f7;}
+    #map{width:100vw;height:100vh;}
+    #loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:sans-serif;font-size:13px;color:#6B7280;z-index:999;}
+  </style>
+</head>
+<body>
+  <div id="loading">Chargement…</div>
+  <div id="map"></div>
+  <script>
+    var map = L.map('map',{zoomControl:false,attributionControl:false});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(map);
+    var pickup = ${JSON.stringify(pickup)};
+    var dropoff = ${JSON.stringify(dropoff)};
+    function dot(color){return L.divIcon({html:'<div style="width:14px;height:14px;border-radius:50%;background:'+color+';border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)"></div>',className:'',iconSize:[14,14],iconAnchor:[7,7]});}
+    async function geo(addr){try{var r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr)+'&limit=1',{headers:{'User-Agent':'IlEstChouette/1.0'}});var d=await r.json();return d.length?[parseFloat(d[0].lat),parseFloat(d[0].lon)]:null;}catch(e){return null;}}
+    async function init(){
+      var res=await Promise.all([geo(pickup),geo(dropoff)]);
+      var from=res[0],to=res[1];
+      document.getElementById('loading').style.display='none';
+      if(from)L.marker(from,{icon:dot('#1B5E9B')}).addTo(map).bindTooltip('Départ',{permanent:true,direction:'top',className:''});
+      if(to)L.marker(to,{icon:dot('#16A34A')}).addTo(map).bindTooltip('Arrivée',{permanent:true,direction:'top',className:''});
+      if(from&&to){
+        try{
+          var r=await fetch('https://router.project-osrm.org/route/v1/driving/'+from[1]+','+from[0]+';'+to[1]+','+to[0]+'?overview=full&geometries=geojson');
+          var d=await r.json();
+          if(d.routes&&d.routes[0]){var route=L.geoJSON(d.routes[0].geometry,{style:{color:'#1B5E9B',weight:5,opacity:.85}}).addTo(map);map.fitBounds(route.getBounds(),{padding:[40,40]});}
+          else{map.fitBounds([from,to],{padding:[50,50]});}
+        }catch(e){map.fitBounds([from,to],{padding:[50,50]});}
+      }else if(from){map.setView(from,15);}
+      else if(to){map.setView(to,15);}
+      else{map.setView([43.7102,7.2620],13);}
+    }
+    init();
+  </script>
+</body>
+</html>`;
+
+  return (
+    <View style={{ height: 190, borderRadius: 14, overflow: 'hidden', marginVertical: 10 }}>
+      <WebView
+        source={{ html }}
+        style={{ flex: 1 }}
+        scrollEnabled={false}
+        javaScriptEnabled
+        originWhitelist={['*']}
+        mixedContentMode="always"
+        allowUniversalAccessFromFileURLs
+      />
+    </View>
+  );
+}
 
 function buildPickupUrl(address: string): string {
   const dest = encodeURIComponent(address);
@@ -121,15 +184,6 @@ function MissionCard({
               </View>
             </View>
 
-            {order.extra_stops?.map((stop, i) => (
-              <View key={i} style={styles.addressRow}>
-                <View style={[styles.dot, { backgroundColor: ORANGE }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.addressLabel}>Étape {i + 1}</Text>
-                  <Text style={styles.addressText}>{stop}</Text>
-                </View>
-              </View>
-            ))}
 
             <View style={styles.addressRow}>
               <View style={[styles.dot, { backgroundColor: GREEN }]} />
@@ -208,6 +262,11 @@ function MissionCard({
         </>
       ) : (
         <Text style={styles.notesText}>Détails non disponibles</Text>
+      )}
+
+      {/* ── Carte intégrée (missions acceptées) ── */}
+      {assignment.status === 'acceptee' && order?.pickup_address && order?.dropoff_address && (
+        <InlineMap pickup={order.pickup_address} dropoff={order.dropoff_address} />
       )}
 
       {/* ── Boutons navigation ── */}
@@ -451,7 +510,15 @@ function FinishModal({
   /* ── Étape 2 : Signature ── */
   return (
     <View style={styles.overlay}>
-      <View style={[styles.modal, { paddingBottom: 8 }]}>
+      <View style={[styles.modal, { paddingBottom: 12, paddingTop: 20 }]}>
+        {/* Bouton retour en HAUT pour qu'il soit toujours visible */}
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => { setStep('form'); setError(''); }}
+        >
+          <Text style={styles.backBtnText}>← Retour</Text>
+        </Pressable>
+
         <Text style={styles.modalTitle}>✍️ Signature du client</Text>
         <Text style={styles.signatureHint}>Demandez au client de signer ci-dessous pour confirmer la réception</Text>
 
@@ -462,25 +529,38 @@ function FinishModal({
               setSignature(sig);
               handleFinish(sig);
             }}
-            onEmpty={() => setError('Veuillez obtenir la signature du client.')}
+            onEmpty={() => setError('Veuillez signer avant de confirmer.')}
             descriptionText=""
-            clearText="Effacer"
-            confirmText={loading ? 'Enregistrement…' : 'Confirmer'}
+            clearText=""
+            confirmText=""
             webStyle={`
               .m-signature-pad { box-shadow: none; border: none; }
               .m-signature-pad--body { border: none; }
-              .m-signature-pad--footer { background: #fff; padding: 8px; }
-              .button.clear { background: #FEE2E2; color: #DC2626; border-radius: 8px; font-weight: 700; }
-              .button.save { background: #16A34A; color: #fff; border-radius: 8px; font-weight: 700; }
+              .m-signature-pad--footer { display: none !important; }
             `}
           />
         </View>
 
         {error ? <Text style={[styles.error, { marginBottom: 8 }]}>{error}</Text> : null}
 
-        <Pressable style={[styles.actionBtn, styles.refuseBtn, { marginTop: 4 }]} onPress={() => { setStep('form'); setError(''); }}>
-          <Text style={styles.refuseBtnText}>← Retour</Text>
-        </Pressable>
+        {/* Boutons natifs — fiables sur iOS contrairement aux boutons WebView */}
+        <View style={styles.actions}>
+          <Pressable
+            style={[styles.actionBtn, styles.refuseBtn]}
+            onPress={() => { sigRef.current?.clearSignature(); setError(''); }}
+          >
+            <Text style={styles.refuseBtnText}>Effacer</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.actionBtn, styles.acceptBtn]}
+            onPress={() => sigRef.current?.readSignature()}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={styles.acceptBtnText}>Confirmer ✓</Text>}
+          </Pressable>
+        </View>
 
         {loading && (
           <View style={styles.loadingOverlay}>
@@ -504,6 +584,29 @@ type PendingOrder = {
   scheduled_at: string | null;
 };
 
+/* ---- Calcul durée de trajet via OSRM ---- */
+async function getRouteDurationSeconds(pickup: string, dropoff: string): Promise<number | null> {
+  try {
+    const geo = async (addr: string) => {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1`,
+        { headers: { 'User-Agent': 'IlEstChouette/1.0' } }
+      );
+      const d = await r.json();
+      return d.length > 0 ? { lat: parseFloat(d[0].lat), lon: parseFloat(d[0].lon) } : null;
+    };
+    const [from, to] = await Promise.all([geo(pickup), geo(dropoff)]);
+    if (!from || !to) return null;
+    const r = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`
+    );
+    const d = await r.json();
+    return d.routes?.[0]?.duration ? Math.round(d.routes[0].duration) : null;
+  } catch {
+    return null;
+  }
+}
+
 const SERVICE_LABELS: Record<string, string> = {
   supermarket: '🛒 Courses supermarché',
   meds: '💊 Pharmacie',
@@ -520,6 +623,7 @@ const SERVICE_LABELS: Record<string, string> = {
 
 /* ======== ÉCRAN PRINCIPAL ======== */
 export default function DashboardScreen() {
+  const insets = useSafeAreaInsets();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
@@ -537,32 +641,68 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [finishingId, setFinishingId] = useState<string | null>(null);
   const [courierEmail, setCourierEmail] = useState('');
+  const [loadError, setLoadError] = useState('');
+  // Ref pour cacher l'email — évite les problèmes de closure stale sur Android
+  // où getSession() retourne null lors des premiers appels (lecture AsyncStorage async)
+  const courierEmailRef = useRef('');
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 20_000);
+
+    // Écouter la session chargée depuis AsyncStorage (INITIAL_SESSION)
+    // Sur Android getSession() peut retourner null au démarrage → onAuthStateChange
+    // est la source fiable pour récupérer l'email initial
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const email = session?.user?.email;
+      if (email) {
+        courierEmailRef.current = email;
+        loadData(email);
+      }
+    });
+
+    const interval = setInterval(() => loadData(courierEmailRef.current || undefined), 20_000);
 
     // Recharger quand l'app revient au premier plan
     const appStateSub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') loadData();
+      if (nextState === 'active') loadData(courierEmailRef.current || undefined);
     });
 
+    // Realtime : nouvelle commande ou assignment → rafraîchir immédiatement
+    const realtimeChannel = supabase
+      .channel('dashboard-refresh')
+      .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+        loadData(courierEmailRef.current || undefined);
+      })
+      .on('postgres_changes' as any, { event: 'INSERT', schema: 'public', table: 'assignments' }, () => {
+        loadData(courierEmailRef.current || undefined);
+      })
+      .on('postgres_changes' as any, { event: 'UPDATE', schema: 'public', table: 'assignments' }, () => {
+        loadData(courierEmailRef.current || undefined);
+      })
+      .subscribe();
+
     return () => {
+      authSub.unsubscribe();
       clearInterval(interval);
       appStateSub.remove();
+      supabase.removeChannel(realtimeChannel);
     };
   }, []);
 
-  async function loadData() {
+  async function loadData(emailOverride?: string) {
     const { data: sessionData } = await supabase.auth.getSession();
-    const userEmail = sessionData.session?.user?.email ?? '';
+    // Sur Android, getSession() peut retourner null au premier appel
+    // → fallback sur le ref qui est mis à jour par onAuthStateChange
+    const userEmail = emailOverride || sessionData.session?.user?.email || courierEmailRef.current || '';
+    if (!userEmail) { setLoading(false); setRefreshing(false); return; }
+    courierEmailRef.current = userEmail;
     setCourierEmail(userEmail);
 
     // Mes missions + commandes actives en parallèle
     const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
       supabase
         .from('assignments')
-        .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,extra_stops,client_email,client_name,client_phone,payment_method)')
+        .select('id,order_id,courier_email,assigned_at,status,payment_method,validated_with_code, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,client_email,client_name,client_phone,payment_method)')
         .eq('courier_email', userEmail)
         .in('status', ['assigned', 'acceptee'])
         .order('assigned_at', { ascending: false }),
@@ -572,7 +712,12 @@ export default function DashboardScreen() {
         .in('status', ['assigned', 'acceptee']),
     ]);
 
-    if (myAssignmentsRes.data) setAssignments(myAssignmentsRes.data as Assignment[]);
+    if (myAssignmentsRes.error) {
+      setLoadError(`Erreur missions : ${myAssignmentsRes.error.message}`);
+    } else {
+      setLoadError('');
+    }
+    if (myAssignmentsRes.data) setAssignments(myAssignmentsRes.data as unknown as Assignment[]);
 
     const takenOrderIds = (activeAssignmentsRes.data ?? []).map((a: any) => a.order_id);
 
@@ -594,6 +739,27 @@ export default function DashboardScreen() {
   }
 
   async function handleClaimOrder(order: PendingOrder) {
+    // Récupérer l'email frais depuis la session (pas depuis le state qui peut être vide)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const email = sessionData.session?.user?.email;
+    if (!email) {
+      Alert.alert('Session expirée', 'Reconnecte-toi.');
+      return;
+    }
+    if (email !== courierEmail) setCourierEmail(email);
+
+    // Vérifier si le coursier a déjà une mission active
+    const { data: activeMissions } = await supabase
+      .from('assignments')
+      .select('id')
+      .eq('courier_email', email)
+      .eq('status', 'acceptee');
+
+    if (activeMissions && activeMissions.length > 0) {
+      Alert.alert('Mission en cours', 'Tu as déjà une mission en cours. Termine-la avant d\'en prendre une nouvelle.');
+      return;
+    }
+
     Alert.alert(
       'Prendre cette mission ?',
       `${order.service_type} — ${order.dropoff_address}`,
@@ -602,8 +768,9 @@ export default function DashboardScreen() {
         {
           text: 'Accepter',
           onPress: async () => {
+            stopMissionSound();
             const { error } = await supabase.from('assignments').insert({
-              courier_email: courierEmail,
+              courier_email: email,
               order_id: order.id,
               status: 'acceptee',
               assigned_at: new Date().toISOString(),
@@ -622,15 +789,42 @@ export default function DashboardScreen() {
 
   async function handleAccept(id: string) {
     stopMissionSound();
+
+    // Vérifier si le coursier a déjà une mission active
+    const { data: activeMissions } = await supabase
+      .from('assignments')
+      .select('id')
+      .eq('courier_email', courierEmailRef.current)
+      .eq('status', 'acceptee')
+      .neq('id', id);
+
+    if (activeMissions && activeMissions.length > 0) {
+      Alert.alert('Mission en cours', 'Tu as déjà une mission en cours. Termine-la avant d\'en accepter une nouvelle.');
+      return;
+    }
+
     const { error } = await supabase
       .from('assignments')
       .update({ status: 'acceptee' })
       .eq('id', id);
 
     if (error) {
-      Alert.alert('Erreur', 'Impossible d\'accepter la mission.');
+      Alert.alert('Erreur', `Impossible d'accepter : ${error.message}`);
     } else {
-      loadData();
+      // Mettre à jour l'état local immédiatement pour éviter la disparition
+      setAssignments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: 'acceptee' as AssignmentStatus } : a))
+      );
+      // Calculer et sauvegarder la durée du trajet en arrière-plan
+      const assignment = assignments.find((a) => a.id === id);
+      const pickup = assignment?.order?.pickup_address;
+      const dropoff = assignment?.order?.dropoff_address;
+      if (pickup && dropoff) {
+        getRouteDurationSeconds(pickup, dropoff).then((secs) => {
+          if (secs) supabase.from('assignments').update({ route_duration_seconds: secs }).eq('id', id);
+        });
+      }
+      await loadData();
     }
   }
 
@@ -669,13 +863,19 @@ export default function DashboardScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#F0F8FF' }}>
       {/* Header */}
-      <View style={styles.screenHeader}>
+      <View style={[styles.screenHeader, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.screenTitle}>Mes missions</Text>
         <Text style={styles.screenSubtitle}>{assignments.length} en cours</Text>
       </View>
 
+      {loadError ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>⚠️ {loadError}</Text>
+        </View>
+      ) : null}
+
       <ScrollView
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: 80 }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -685,13 +885,13 @@ export default function DashboardScreen() {
         }
       >
         {/* Commandes disponibles à prendre */}
-        {pendingOrders.filter((o) => !skippedIds.has(o.id) && (o.price_total ?? 0) > 0).length > 0 && (
+        {pendingOrders.filter((o) => !skippedIds.has(o.id)).length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>🔔 Nouvelles commandes disponibles</Text>
             </View>
             {pendingOrders
-              .filter((o) => !skippedIds.has(o.id) && (o.price_total ?? 0) > 0)
+              .filter((o) => !skippedIds.has(o.id))
               .map((o) => (
                 <View key={o.id} style={styles.availableCard}>
                   <View style={styles.availableTop}>
@@ -764,7 +964,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   screenHeader: {
     backgroundColor: BLUE,
-    paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
@@ -860,6 +1059,10 @@ const styles = StyleSheet.create({
   refuseBtnText: { color: RED, fontWeight: '700', fontSize: 15 },
   finishBtn: { backgroundColor: BLUE },
 
+  // Error banner
+  errorBanner: { backgroundColor: '#FEE2E2', paddingHorizontal: 16, paddingVertical: 10 },
+  errorBannerText: { color: '#DC2626', fontSize: 13, fontWeight: '600' },
+
   // Empty state
   empty: { alignItems: 'center', marginTop: 60, paddingHorizontal: 32 },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
@@ -880,7 +1083,9 @@ const styles = StyleSheet.create({
   paymentBtnTextActive: { color: '#fff' },
   invoiceHint: { fontSize: 12, color: '#1B5E9B', fontStyle: 'italic', marginTop: 6, textAlign: 'center' },
   signatureHint: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 12 },
-  signatureBox: { height: 260, borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 8 },
+  signatureBox: { height: 220, borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 8 },
+  backBtn: { alignSelf: 'flex-start', marginBottom: 8 },
+  backBtnText: { color: '#6B7280', fontSize: 14, fontWeight: '600' },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', borderRadius: 20 },
   sectionHeader: { paddingHorizontal: 4, paddingTop: 8, paddingBottom: 4 },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#374151' },

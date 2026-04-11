@@ -39,6 +39,7 @@ export default function HistoriqueScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [userEmail, setUserEmail] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const totalGagne = useMemo(() =>
     assignments
@@ -47,23 +48,33 @@ export default function HistoriqueScreen() {
     [assignments]
   );
 
-  useEffect(() => { loadData(0, true); }, []);
+  useEffect(() => {
+    loadData(0, true);
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.email) loadData(0, true, session.user.email);
+    });
+    return () => { authSub.unsubscribe(); };
+  }, []);
 
-  async function loadData(pageIndex = 0, reset = false) {
+  async function loadData(pageIndex = 0, reset = false, emailOverride?: string) {
     const { data: sessionData } = await supabase.auth.getSession();
-    const email = sessionData.session?.user?.email ?? '';
-    if (email) setUserEmail(email);
+    const email = emailOverride || sessionData.session?.user?.email || '';
+    if (!email) { setLoading(false); setRefreshing(false); setLoadingMore(false); return; }
+    setUserEmail(email);
 
     const { data, error } = await supabase
       .from('assignments')
-      .select('*, order:orders(*)')
+      .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,price_total,created_at,scheduled_at)')
       .eq('courier_email', email)
       .in('status', ['terminee', 'annulee', 'refusee'])
       .order('assigned_at', { ascending: false })
       .range(pageIndex * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE - 1);
 
-    if (!error && data) {
-      const list = data as Assignment[];
+    if (error) {
+      setLoadError(`Erreur : ${error.message} (code: ${error.code})`);
+    } else if (data) {
+      setLoadError('');
+      const list = data as unknown as Assignment[];
       setAssignments(prev => reset ? list : [...prev, ...list]);
       setHasMore(list.length === PAGE_SIZE);
       setPage(pageIndex);
@@ -115,8 +126,9 @@ export default function HistoriqueScreen() {
         onEndReachedThreshold={0.3}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>Aucune mission passée</Text>
+            <Text style={styles.emptyIcon}>{loadError ? '⚠️' : '📋'}</Text>
+            <Text style={styles.emptyTitle}>{loadError ? 'Erreur de chargement' : 'Aucune mission passée'}</Text>
+            {loadError ? <Text style={styles.errorText}>{loadError}</Text> : null}
           </View>
         }
         ListFooterComponent={loadingMore ? <ActivityIndicator color={BLUE} style={{ marginVertical: 16 }} /> : null}
@@ -192,7 +204,8 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: '600' },
   address: { fontSize: 13, color: '#374151', marginBottom: 2 },
   earned: { fontSize: 16, fontWeight: '700', color: GREEN, marginTop: 6 },
-  empty: { alignItems: 'center', marginTop: 60 },
+  empty: { alignItems: 'center', marginTop: 60, paddingHorizontal: 24 },
   emptyIcon: { fontSize: 40, marginBottom: 10 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#6B7280' },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#6B7280', textAlign: 'center' },
+  errorText: { fontSize: 13, color: '#DC2626', marginTop: 8, textAlign: 'center', lineHeight: 18 },
 });
