@@ -57,6 +57,7 @@ type Courier = {
   email: string;
   first_name: string | null;
   last_name: string | null;
+  blocked: boolean | null;
 };
 
 type Customer = {
@@ -293,6 +294,13 @@ export default function AdminPage() {
     setOrders((prev) => prev.map((o) => o.id === cancelOrderId ? { ...o, status: "annulee" } : o));
     setCancelOrderId(null);
     setCancelReason("");
+  }
+
+  /* ─── Block/unblock courier ─── */
+  async function toggleBlockCourier(courier: Courier) {
+    const newBlocked = !courier.blocked;
+    await supabase.from("couriers").update({ blocked: newBlocked }).eq("id", courier.id);
+    setCouriers((prev) => prev.map((c) => c.id === courier.id ? { ...c, blocked: newBlocked } : c));
   }
 
   /* ─── Computed ─── */
@@ -706,6 +714,52 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </Section>
+
+          {/* ── Statut coursiers ── */}
+          <Section title="Coursiers">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {couriers.map((c) => {
+                const activeMission = assignments.find(
+                  (a) => a.courier_email === c.email && a.status === "acceptee"
+                );
+                const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.email;
+                const isBlocked = !!c.blocked;
+                const isOnMission = !!activeMission;
+                const statusLabel = isBlocked ? "Bloqué" : isOnMission ? "En mission" : "Disponible";
+                const statusColor = isBlocked
+                  ? "bg-red-100 text-red-700"
+                  : isOnMission
+                  ? "bg-yellow-100 text-yellow-700"
+                  : "bg-green-100 text-green-700";
+                const dot = isBlocked ? "🔴" : isOnMission ? "🟡" : "🟢";
+
+                return (
+                  <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{name}</p>
+                      <p className="text-xs text-gray-400 truncate">{c.email}</p>
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1 ${statusColor}`}>
+                        {dot} {statusLabel}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => toggleBlockCourier(c)}
+                      className={`ml-3 text-xs font-semibold px-3 py-1.5 rounded-lg transition ${
+                        isBlocked
+                          ? "bg-green-500 hover:bg-green-600 text-white"
+                          : "bg-red-500 hover:bg-red-600 text-white"
+                      }`}
+                    >
+                      {isBlocked ? "Débloquer" : "Bloquer"}
+                    </button>
+                  </div>
+                );
+              })}
+              {couriers.length === 0 && (
+                <p className="text-sm text-gray-400 col-span-3 py-4 text-center">Aucun coursier inscrit.</p>
+              )}
             </div>
           </Section>
 

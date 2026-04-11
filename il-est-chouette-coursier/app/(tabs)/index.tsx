@@ -641,6 +641,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [finishingId, setFinishingId] = useState<string | null>(null);
   const [courierEmail, setCourierEmail] = useState('');
+  const [isBlocked, setIsBlocked] = useState(false);
   const [loadError, setLoadError] = useState('');
   // Ref pour cacher l'email — évite les problèmes de closure stale sur Android
   // où getSession() retourne null lors des premiers appels (lecture AsyncStorage async)
@@ -697,6 +698,14 @@ export default function DashboardScreen() {
     if (!userEmail) { setLoading(false); setRefreshing(false); return; }
     courierEmailRef.current = userEmail;
     setCourierEmail(userEmail);
+
+    // Vérifier si le coursier est bloqué
+    const { data: courierData } = await supabase
+      .from('couriers')
+      .select('blocked')
+      .eq('email', userEmail)
+      .single();
+    setIsBlocked(!!courierData?.blocked);
 
     // Mes missions + commandes actives en parallèle
     const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
@@ -868,7 +877,13 @@ export default function DashboardScreen() {
         <Text style={styles.screenSubtitle}>{assignments.length} en cours</Text>
       </View>
 
-      {loadError ? (
+      {isBlocked && (
+        <View style={[styles.errorBanner, { backgroundColor: '#FEE2E2' }]}>
+          <Text style={[styles.errorBannerText, { color: RED }]}>🚫 Ton compte est temporairement suspendu. Contacte l'administrateur.</Text>
+        </View>
+      )}
+
+      {!isBlocked && loadError ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>⚠️ {loadError}</Text>
         </View>
@@ -885,7 +900,7 @@ export default function DashboardScreen() {
         }
       >
         {/* Commandes disponibles à prendre */}
-        {pendingOrders.filter((o) => !skippedIds.has(o.id)).length > 0 && (
+        {!isBlocked && pendingOrders.filter((o) => !skippedIds.has(o.id)).length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>🔔 Nouvelles commandes disponibles</Text>
