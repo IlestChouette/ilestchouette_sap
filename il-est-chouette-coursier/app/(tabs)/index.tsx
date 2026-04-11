@@ -877,12 +877,6 @@ export default function DashboardScreen() {
         <Text style={styles.screenSubtitle}>{assignments.length} en cours</Text>
       </View>
 
-      {isBlocked && (
-        <View style={[styles.errorBanner, { backgroundColor: '#FEE2E2' }]}>
-          <Text style={[styles.errorBannerText, { color: RED }]}>🚫 Ton compte est temporairement suspendu. Contacte l'administrateur.</Text>
-        </View>
-      )}
-
       {!isBlocked && loadError ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>⚠️ {loadError}</Text>
