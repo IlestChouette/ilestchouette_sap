@@ -1,6 +1,7 @@
 import { Text } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BLUE = '#1B5E9B';
 
@@ -9,6 +10,10 @@ function TabIcon({ emoji, active }: { emoji: string; active: boolean }) {
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Platform.OS === 'android' ? insets.bottom + 8 : 20;
+  const tabHeight = Platform.OS === 'android' ? 56 + insets.bottom : 80;
+
   return (
     <Tabs
       screenOptions={{
@@ -18,9 +23,9 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#fff',
           borderTopColor: '#E5E7EB',
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          paddingBottom: bottomPad,
           paddingTop: 8,
-          height: Platform.OS === 'ios' ? 80 : 60,
+          height: tabHeight,
         },
         tabBarLabelStyle: {
           fontSize: 11,

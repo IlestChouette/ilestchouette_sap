@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -7,7 +7,7 @@ import {
   View,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabase';
 import { SERVICES } from '@/lib/services';
@@ -22,15 +22,18 @@ export default function HomeScreen() {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [userEmail, setUserEmail] = useState('');
 
-  useEffect(() => {
-    async function loadUser() {
-      const { data } = await supabase.auth.getSession();
-      const email = data.session?.user?.email ?? '';
-      setUserEmail(email);
-      if (email) loadActiveOrder(email);
-    }
-    loadUser();
-  }, []);
+  // Rechargement à chaque fois que l'écran prend le focus (retour depuis suivi, etc.)
+  useFocusEffect(
+    useCallback(() => {
+      async function loadUser() {
+        const { data } = await supabase.auth.getSession();
+        const email = data.session?.user?.email ?? '';
+        setUserEmail(email);
+        if (email) loadActiveOrder(email);
+      }
+      loadUser();
+    }, [])
+  );
 
   async function loadActiveOrder(email: string) {
     const { data } = await supabase
@@ -63,7 +66,7 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Bannière commande active */}
         {activeOrder && (
-          <Pressable style={styles.activeBanner} onPress={() => router.push('/suivi')}>
+          <Pressable style={styles.activeBanner} onPress={() => router.replace('/(tabs)/suivi')}>
             <Text style={styles.activeBannerEmoji}>🚴</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.activeBannerTitle}>{t('home.active_order')}</Text>

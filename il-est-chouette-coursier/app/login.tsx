@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,11 +10,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 
 export default function LoginScreen() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,9 +34,8 @@ export default function LoginScreen() {
     if (err) {
       setError('Email ou mot de passe incorrect.');
       setLoading(false);
-    } else {
-      router.replace('/(tabs)');
     }
+    // La navigation est gérée par _layout.tsx via onAuthStateChange
   }
 
   return (
@@ -48,7 +46,11 @@ export default function LoginScreen() {
       <View style={styles.inner}>
         {/* Logo / Header */}
         <View style={styles.header}>
-          <Text style={styles.logo}>🚴</Text>
+          <Image
+            source={require('@/assets/images/icon.png')}
+            style={{ width: 90, height: 90, marginBottom: 8 }}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Il est Chouette</Text>
           <Text style={styles.subtitle}>Espace Coursier</Text>
         </View>

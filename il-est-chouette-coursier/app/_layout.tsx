@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Stack, Redirect } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import * as Notifications from 'expo-notifications';
@@ -8,7 +8,6 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { registerForPushNotifications, savePushToken } from '@/lib/notifications';
 import { playMissionSound } from '@/lib/sound';
-import { useState } from 'react';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -21,24 +20,41 @@ export default function RootLayout() {
   const [loading, setLoading] = useState(true);
   const notifListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Navigation basée sur session
+  useEffect(() => {
+    if (loading) return;
+    const inTabs = segments[0] === '(tabs)';
+    if (session && !inTabs) {
+      router.replace('/(tabs)');
+    } else if (!session && inTabs) {
+      router.replace('/login');
+    }
+  }, [session, loading]);
 
   useEffect(() => {
     // Charger la session initiale
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
+      // Enregistrer le push token au démarrage si déjà connecté
+      // (le SIGNED_IN event ne se déclenche pas pour les sessions existantes)
+      if (data.session?.user?.email && !isExpoGo) {
+        registerForPushNotifications().then((token) => {
+          if (token) savePushToken(data.session!.user!.email!, token);
+        });
+      }
     });
 
     // Écouter les changements d'auth
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, s) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, s) => {
       setSession(s);
 
-      // Quand le coursier se connecte → enregistrer le push token (pas sur Expo Go)
-      if (s?.user?.email && !isExpoGo) {
+      if (event === 'SIGNED_IN' && s?.user?.email && !isExpoGo) {
         const token = await registerForPushNotifications();
-        if (token) {
-          await savePushToken(s.user.email, token);
-        }
+        if (token) await savePushToken(s.user.email, token);
       }
     });
 
@@ -117,7 +133,6 @@ export default function RootLayout() {
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
       </Stack>
-      {!session && <Redirect href="/login" />}
       <StatusBar style="auto" />
     </>
   );

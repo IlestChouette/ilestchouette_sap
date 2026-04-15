@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useStripe } from '@stripe/stripe-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
@@ -57,6 +57,7 @@ export default function CommanderScreen() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const flatListRef = useRef<FlatList>(null);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialLoadDoneRef = useRef(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -71,9 +72,29 @@ export default function CommanderScreen() {
   const [merchants, setMerchants] = useState<any[]>([]);
   const merchantsRef = useRef<any[]>([]);
 
-  useEffect(() => {
-    loadAndStart();
-  }, []);
+  // Détecte si un nouveau service a été sélectionné depuis l'accueil.
+  // Si oui : réinitialise la conversation. Sinon : charge une seule fois au premier affichage.
+  useFocusEffect(
+    useCallback(() => {
+      async function checkAndStart() {
+        const pending = await AsyncStorage.getItem('pending_service');
+        if (pending) {
+          // Nouveau service sélectionné → on repart de zéro
+          setMessages([]);
+          setPendingAction(null);
+          setDone(false);
+          initialLoadDoneRef.current = false;
+          loadAndStart();
+        } else if (!initialLoadDoneRef.current) {
+          // Premier affichage sans service spécifique
+          initialLoadDoneRef.current = true;
+          loadAndStart();
+        }
+        // Retour en cours de conversation → on ne touche à rien
+      }
+      checkAndStart();
+    }, [])
+  );
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -297,6 +318,7 @@ export default function CommanderScreen() {
       dropoff_address: o.dropoff_address,
       notes: o.notes ?? null,
       price_total: o.price_total,
+      price_items: o.price_items ?? 0,
       status: 'pending',
       scheduled_at: o.scheduled_at ?? null,
       payment_method: o.payment_method,
@@ -352,7 +374,7 @@ export default function CommanderScreen() {
         <Text style={styles.successEmoji}>🎉</Text>
         <Text style={styles.successTitle}>Commande envoyée !</Text>
         <Text style={styles.successBody}>Votre coursier va prendre en charge votre demande dans les plus brefs délais.</Text>
-        <Pressable style={styles.successBtn} onPress={() => { setDone(false); setPendingAction(null); router.push('/suivi'); }}>
+        <Pressable style={styles.successBtn} onPress={() => { setDone(false); setPendingAction(null); router.replace('/(tabs)/suivi'); }}>
           <Text style={styles.successBtnText}>Suivre ma commande 🚴</Text>
         </Pressable>
         <Pressable onPress={() => { setDone(false); setPendingAction(null); router.push('/'); }} style={{ marginTop: 16 }}>
@@ -446,9 +468,11 @@ export default function CommanderScreen() {
                         {o.pickup_address ? <ConfirmRow label="Depuis" value={o.pickup_address} /> : null}
                         <ConfirmRow label="Livraison" value={o.dropoff_address} />
                         {o.notes ? <ConfirmRow label="Détails" value={o.notes} /> : null}
-                        <ConfirmRow label="Horaire" value={o.is_asap ? '⚡ ASAP' : o.scheduled_at ?? 'Planifié'} />
-                        {o.price_items ? <ConfirmRow label="Articles" value={`${o.price_items.toFixed(2)} €`} /> : null}
-                        <ConfirmRow label="Livraison" value={`${(o.price_total - (o.price_items ?? 0)).toFixed(2)} €`} />
+                        <ConfirmRow label="Horaire" value={o.is_asap ? '⚡ À faire tout de suite' : o.scheduled_at ?? 'Planifié'} />
+                        {o.price_items ? (
+                          <ConfirmRow label="🛒 Articles (à payer au coursier)" value={`${o.price_items.toFixed(2)} €`} />
+                        ) : null}
+                        <ConfirmRow label="⚡ Frais de service" value={`${(o.price_total - (o.price_items ?? 0)).toFixed(2)} €`} />
                       </View>
                       <View style={styles.confirmSubtotalRow}>
                         <Text style={styles.confirmRowLabel}>Sous-total</Text>
@@ -460,6 +484,13 @@ export default function CommanderScreen() {
                     <Text style={styles.confirmTotalLabel}>Total</Text>
                     <Text style={styles.confirmTotalValue}>{grandTotal.toFixed(2)} €</Text>
                   </View>
+                  {pendingAction.orders.some(o => (o.price_items ?? 0) > 0) && (
+                    <View style={styles.purchaseNote}>
+                      <Text style={styles.purchaseNoteText}>
+                        ℹ️ Les articles ({pendingAction.orders.reduce((s, o) => s + (o.price_items ?? 0), 0).toFixed(2)} €) sont réglés directement au coursier à la livraison. Seuls les frais de service sont facturés ici.
+                      </Text>
+                    </View>
+                  )}
                   <Pressable style={styles.confirmBtn} onPress={handleConfirmOrder} disabled={placing}>
                     {placing
                       ? <ActivityIndicator color="#fff" />
@@ -579,6 +610,11 @@ const styles = StyleSheet.create({
   },
   confirmTotalLabel: { fontSize: 14, fontWeight: '700', color: '#111827' },
   confirmTotalValue: { fontSize: 22, fontWeight: '800', color: ORANGE },
+  purchaseNote: {
+    backgroundColor: '#FFF7ED', borderRadius: 10, padding: 10, marginTop: 8,
+    borderWidth: 1, borderColor: '#FED7AA',
+  },
+  purchaseNoteText: { fontSize: 12, color: '#92400E', lineHeight: 17 },
   confirmBtn: {
     backgroundColor: ORANGE, borderRadius: 14, paddingVertical: 15,
     alignItems: 'center', marginTop: 12,

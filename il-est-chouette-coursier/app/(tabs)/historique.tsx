@@ -44,7 +44,7 @@ export default function HistoriqueScreen() {
   const totalGagne = useMemo(() =>
     assignments
       .filter((a) => a.status === 'terminee' && a.order)
-      .reduce((sum, a) => sum + (a.order!.price_total * 0.65), 0),
+      .reduce((sum, a) => sum + ((a.order!.price_total - (a.order!.price_items ?? 0)) * 0.65), 0),
     [assignments]
   );
 
@@ -64,7 +64,7 @@ export default function HistoriqueScreen() {
 
     const { data, error } = await supabase
       .from('assignments')
-      .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,price_total,created_at,scheduled_at)')
+      .select('*, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,price_total,price_items,created_at,scheduled_at)')
       .eq('courier_email', email)
       .in('status', ['terminee', 'annulee', 'refusee'])
       .order('assigned_at', { ascending: false })
@@ -152,7 +152,7 @@ export default function HistoriqueScreen() {
                   </Text>
                   {a.status === 'terminee' && (
                     <Text style={styles.earned}>
-                      +{(a.order.price_total * 0.65).toFixed(2)} €
+                      +{((a.order.price_total - (a.order.price_items ?? 0)) * 0.65).toFixed(2)} €
                     </Text>
                   )}
                 </>

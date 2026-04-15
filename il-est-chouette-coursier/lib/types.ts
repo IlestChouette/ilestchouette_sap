@@ -15,6 +15,7 @@ export type Order = {
   access_info?: string | null;
   notes?: string | null;
   price_total: number;
+  price_items?: number | null;
   express?: boolean;
   created_at?: string | null;
   scheduled_at?: string | null;

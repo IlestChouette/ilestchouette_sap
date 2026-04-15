@@ -82,7 +82,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
       </Stack>
       {!onboardingDone && <Redirect href="/onboarding" />}
-      {onboardingDone && !session && <Redirect href="/login" />}
+      {onboardingDone && !session && pathname !== '/register' && <Redirect href="/login" />}
       <StatusBar style="dark" />
     </StripeProvider>
   );

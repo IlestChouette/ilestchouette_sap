@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/lib/supabase';
 import { getService } from '@/lib/services';
@@ -79,8 +79,15 @@ export default function SuiviScreen() {
     await loadOrders(userEmail);
   }
 
-  async function loadOrders(email: string) {
-    setLoading(true);
+  // Rechargement silencieux quand l'écran reprend le focus (cas où realtime a raté une MAJ)
+  useFocusEffect(
+    useCallback(() => {
+      if (userEmail) loadOrders(userEmail, true);
+    }, [userEmail])
+  );
+
+  async function loadOrders(email: string, silent = false) {
+    if (!silent) setLoading(true);
 
     // Commandes actives
     const { data } = await supabase
@@ -112,7 +119,7 @@ export default function SuiviScreen() {
       }
     }
 
-    setLoading(false);
+    if (!silent) setLoading(false);
   }
 
   if (loading) {

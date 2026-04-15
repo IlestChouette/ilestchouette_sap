@@ -250,15 +250,43 @@ function MissionCard({
           <View style={styles.divider} />
           <View style={styles.priceRow}>
             <View>
-              <Text style={styles.priceLabel}>Votre part (65%)</Text>
-              <Text style={styles.priceValue}>{(order.price_total * 0.65).toFixed(2)} €</Text>
+              <Text style={styles.priceLabel}>Votre part (65% frais)</Text>
+              <Text style={styles.priceValue}>{((order.price_total - (order.price_items ?? 0)) * 0.65).toFixed(2)} €</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.priceLabel}>Total client</Text>
-              <Text style={[styles.priceValue, { color: '#6B7280', fontSize: 15 }]}>{order.price_total.toFixed(2)} €</Text>
+              <Text style={styles.priceLabel}>Frais de service</Text>
+              <Text style={[styles.priceValue, { color: '#6B7280', fontSize: 15 }]}>{(order.price_total - (order.price_items ?? 0)).toFixed(2)} €</Text>
             </View>
             {order.express && <View style={styles.expressBadge}><Text style={styles.expressText}>EXPRESS</Text></View>}
           </View>
+          {/* Achats à encaisser du client */}
+          {(order.price_items ?? 0) > 0 && (
+            <View style={styles.purchaseBox}>
+              <Text style={styles.purchaseBoxTitle}>💰 À encaisser du client</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                <Text style={styles.purchaseBoxLabel}>Articles achetés</Text>
+                <Text style={styles.purchaseBoxValue}>{order.price_items!.toFixed(2)} €</Text>
+              </View>
+              {order.payment_method !== 'online_card' && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
+                  <Text style={styles.purchaseBoxLabel}>Frais de service</Text>
+                  <Text style={styles.purchaseBoxValue}>{(order.price_total - (order.price_items ?? 0)).toFixed(2)} €</Text>
+                </View>
+              )}
+              <View style={[styles.purchaseBoxTotal, { marginTop: 6 }]}>
+                <Text style={styles.purchaseBoxTotalLabel}>
+                  {order.payment_method === 'online_card'
+                    ? 'À récupérer (articles uniquement)'
+                    : 'Total à encaisser'}
+                </Text>
+                <Text style={styles.purchaseBoxTotalValue}>
+                  {order.payment_method === 'online_card'
+                    ? order.price_items!.toFixed(2)
+                    : order.price_total.toFixed(2)} €
+                </Text>
+              </View>
+            </View>
+          )}
         </>
       ) : (
         <Text style={styles.notesText}>Détails non disponibles</Text>
@@ -295,14 +323,32 @@ function MissionCard({
         </View>
       )}
 
-      {assignment.status === 'acceptee' && (
-        <Pressable
-          style={[styles.actionBtn, styles.finishBtn, { marginTop: 14 }]}
-          onPress={() => onFinish(assignment.id)}
-        >
-          <Text style={styles.acceptBtnText}>✅ Terminer la mission</Text>
-        </Pressable>
-      )}
+      {assignment.status === 'acceptee' && (() => {
+        // Mission programmée pas encore à l'heure → informer le coursier, pas de bouton Terminer
+        const isFutureScheduled = isScheduled &&
+          new Date(order!.scheduled_at!).getTime() > Date.now();
+        if (isFutureScheduled) {
+          return (
+            <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, marginTop: 12, gap: 4 }}>
+              <Text style={{ color: '#1B5E9B', fontWeight: '700', fontSize: 13 }}>
+                ✅ Mission acceptée
+              </Text>
+              <Text style={{ color: '#3B82F6', fontSize: 12 }}>
+                Tu peux continuer à prendre d'autres missions jusqu'à l'heure prévue.{'\n'}
+                Le bouton "Terminer" apparaîtra le jour J.
+              </Text>
+            </View>
+          );
+        }
+        return (
+          <Pressable
+            style={[styles.actionBtn, styles.finishBtn, { marginTop: 14 }]}
+            onPress={() => onFinish(assignment.id)}
+          >
+            <Text style={styles.acceptBtnText}>✅ Terminer la mission</Text>
+          </Pressable>
+        );
+      })()}
     </View>
   );
 }
@@ -711,7 +757,7 @@ export default function DashboardScreen() {
     const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
       supabase
         .from('assignments')
-        .select('id,order_id,courier_email,assigned_at,status,payment_method,validated_with_code, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,express,created_at,scheduled_at,validation_code,status,wants_invoice,client_email,client_name,client_phone,payment_method)')
+        .select('id,order_id,courier_email,assigned_at,status,payment_method,validated_with_code, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,price_items,express,created_at,scheduled_at,validation_code,status,wants_invoice,client_email,client_name,client_phone,payment_method)')
         .eq('courier_email', userEmail)
         .in('status', ['assigned', 'acceptee'])
         .order('assigned_at', { ascending: false }),
@@ -757,14 +803,21 @@ export default function DashboardScreen() {
     }
     if (email !== courierEmail) setCourierEmail(email);
 
-    // Vérifier si le coursier a déjà une mission active
+    // Vérifier si le coursier a une mission non-programmée en cours
+    // Les missions programmées dans le futur ne bloquent pas
     const { data: activeMissions } = await supabase
       .from('assignments')
-      .select('id')
+      .select('id, order:orders(scheduled_at)')
       .eq('courier_email', email)
       .eq('status', 'acceptee');
 
-    if (activeMissions && activeMissions.length > 0) {
+    const blockingMissions = (activeMissions ?? []).filter((m: any) => {
+      const scheduledAt = m.order?.scheduled_at;
+      if (!scheduledAt) return true;
+      return new Date(scheduledAt).getTime() <= Date.now();
+    });
+
+    if (blockingMissions.length > 0) {
       Alert.alert('Mission en cours', 'Tu as déjà une mission en cours. Termine-la avant d\'en prendre une nouvelle.');
       return;
     }
@@ -799,15 +852,22 @@ export default function DashboardScreen() {
   async function handleAccept(id: string) {
     stopMissionSound();
 
-    // Vérifier si le coursier a déjà une mission active
+    // Vérifier si le coursier a une mission non-programmée en cours
+    // Les missions programmées dans le futur ne bloquent pas
     const { data: activeMissions } = await supabase
       .from('assignments')
-      .select('id')
+      .select('id, order:orders(scheduled_at)')
       .eq('courier_email', courierEmailRef.current)
       .eq('status', 'acceptee')
       .neq('id', id);
 
-    if (activeMissions && activeMissions.length > 0) {
+    const blockingMissions = (activeMissions ?? []).filter((m: any) => {
+      const scheduledAt = m.order?.scheduled_at;
+      if (!scheduledAt) return true; // mission normale = bloquante
+      return new Date(scheduledAt).getTime() <= Date.now(); // mission programmée dont l'heure est arrivée = bloquante
+    });
+
+    if (blockingMissions.length > 0) {
       Alert.alert('Mission en cours', 'Tu as déjà une mission en cours. Termine-la avant d\'en accepter une nouvelle.');
       return;
     }
@@ -820,12 +880,16 @@ export default function DashboardScreen() {
     if (error) {
       Alert.alert('Erreur', `Impossible d'accepter : ${error.message}`);
     } else {
+      // Mettre à jour le statut de la commande → déclenche le Realtime côté client
+      const assignment = assignments.find((a) => a.id === id);
+      if (assignment?.order_id) {
+        await supabase.from('orders').update({ status: 'acceptee' }).eq('id', assignment.order_id);
+      }
       // Mettre à jour l'état local immédiatement pour éviter la disparition
       setAssignments((prev) =>
         prev.map((a) => (a.id === id ? { ...a, status: 'acceptee' as AssignmentStatus } : a))
       );
       // Calculer et sauvegarder la durée du trajet en arrière-plan
-      const assignment = assignments.find((a) => a.id === id);
       const pickup = assignment?.order?.pickup_address;
       const dropoff = assignment?.order?.dropoff_address;
       if (pickup && dropoff) {
@@ -1043,6 +1107,17 @@ const styles = StyleSheet.create({
   priceValue: { fontSize: 22, fontWeight: '800', color: GREEN },
   expressBadge: { backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   expressText: { fontSize: 11, fontWeight: '700', color: '#92400E' },
+
+  purchaseBox: {
+    backgroundColor: '#FFF7ED', borderRadius: 12, padding: 12, marginTop: 10,
+    borderWidth: 1.5, borderColor: '#FED7AA',
+  },
+  purchaseBoxTitle: { fontSize: 13, fontWeight: '800', color: '#92400E' },
+  purchaseBoxLabel: { fontSize: 13, color: '#78350F' },
+  purchaseBoxValue: { fontSize: 13, fontWeight: '600', color: '#92400E' },
+  purchaseBoxTotal: { borderTopWidth: 1, borderTopColor: '#FED7AA', paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between' },
+  purchaseBoxTotalLabel: { fontSize: 13, fontWeight: '700', color: '#78350F' },
+  purchaseBoxTotalValue: { fontSize: 16, fontWeight: '800', color: '#EA580C' },
 
   // Navigation
   mapsBtnRow: { flexDirection: 'row', gap: 8, marginTop: 12 },

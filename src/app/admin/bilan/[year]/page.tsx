@@ -57,7 +57,7 @@ export default function BilanPage() {
       // Supabase orders
       const { data } = await supabase
         .from("orders")
-        .select("id, service_type, price_total, created_at")
+        .select("id, service_type, price_total, price_items, created_at")
         .eq("status", "terminee")
         .gte("created_at", `${year}-01-01`)
         .lte("created_at", `${year}-12-31`);
@@ -77,7 +77,10 @@ export default function BilanPage() {
     load();
   }, [year, yearShort]);
 
-  const platformRevenue = orders.reduce((s, o) => s + (o.price_total ?? 0), 0);
+  // Le CA plateforme = frais de service seulement (price_total - price_items)
+  // Les achats (price_items) transitent vers le coursier, ne sont pas un revenu plateforme
+  const platformRevenue = orders.reduce((s, o) => s + ((o.price_total ?? 0) - (o.price_items ?? 0)), 0);
+  const totalItems = orders.reduce((s, o) => s + (o.price_items ?? 0), 0); // achats transmis au coursier
   const manualRevenue = recetes.reduce((s, r) => s + (parseFloat(r["Montant"] ?? "0") || 0), 0);
   const totalRevenue = platformRevenue + manualRevenue;
   const totalDepenses = depenses.reduce((s, d) => s + parseAmount(d["Montant TTC (€)"]), 0);
@@ -121,7 +124,7 @@ export default function BilanPage() {
         {/* RÉSUMÉ */}
         <section className="grid grid-cols-2 gap-4 mb-8">
           <div className="border border-gray-200 rounded-xl p-4">
-            <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Recettes plateforme</p>
+            <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Recettes plateforme (frais de service)</p>
             <p className="text-2xl font-bold text-green-700">{fmtEuro(platformRevenue)}</p>
             <p className="text-xs text-gray-400 mt-1">{orders.length} commandes terminées</p>
           </div>
@@ -140,29 +143,41 @@ export default function BilanPage() {
             <p className={`text-2xl font-bold ${benefice >= 0 ? "text-orange-600" : "text-red-600"}`}>{fmtEuro(benefice)}</p>
             <p className="text-xs text-gray-400 mt-1">CA total : {fmtEuro(totalRevenue)}</p>
           </div>
+          {totalItems > 0 && (
+            <div className="col-span-2 border border-amber-200 bg-amber-50 rounded-xl p-4">
+              <p className="text-xs text-amber-700 uppercase font-semibold mb-1">Achats avancés par les coursiers (non comptabilisés)</p>
+              <p className="text-2xl font-bold text-amber-700">{fmtEuro(totalItems)}</p>
+              <p className="text-xs text-amber-500 mt-1">Ces montants sont réglés directement par le client au coursier à la livraison — ils ne constituent pas un revenu plateforme.</p>
+            </div>
+          )}
         </section>
 
         {/* RECETTES PLATEFORME */}
         <section className="mb-8">
-          <h2 className="text-base font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4">Recettes plateforme — {fmtEuro(platformRevenue)}</h2>
+          <h2 className="text-base font-bold text-gray-800 border-b border-gray-200 pb-2 mb-4">Recettes plateforme (frais de service) — {fmtEuro(platformRevenue)}</h2>
           {orders.length === 0 ? <p className="text-sm text-gray-400">Aucune commande terminée en {year}.</p> : (
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
                 <th className="text-left py-2 px-2">Date</th>
                 <th className="text-left py-2 px-2">Service</th>
-                <th className="text-right py-2 px-2">Montant</th>
+                <th className="text-right py-2 px-2">Achats</th>
+                <th className="text-right py-2 px-2">Frais service</th>
               </tr></thead>
               <tbody>
-                {orders.map((o) => (
-                  <tr key={o.id} className="border-b border-gray-50">
-                    <td className="py-1.5 px-2 text-gray-500">{new Date(o.created_at).toLocaleDateString("fr-FR")}</td>
-                    <td className="py-1.5 px-2 text-gray-700">{SERVICES[o.service_type] ?? o.service_type}</td>
-                    <td className="py-1.5 px-2 text-right font-semibold">{fmtEuro(o.price_total ?? 0)}</td>
-                  </tr>
-                ))}
+                {orders.map((o) => {
+                  const serviceFee = (o.price_total ?? 0) - (o.price_items ?? 0);
+                  return (
+                    <tr key={o.id} className="border-b border-gray-50">
+                      <td className="py-1.5 px-2 text-gray-500">{new Date(o.created_at).toLocaleDateString("fr-FR")}</td>
+                      <td className="py-1.5 px-2 text-gray-700">{SERVICES[o.service_type] ?? o.service_type}</td>
+                      <td className="py-1.5 px-2 text-right text-amber-600">{o.price_items ? fmtEuro(o.price_items) : "—"}</td>
+                      <td className="py-1.5 px-2 text-right font-semibold">{fmtEuro(serviceFee)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot><tr className="bg-gray-50 font-bold">
-                <td colSpan={2} className="py-2 px-2">Total plateforme</td>
+                <td colSpan={3} className="py-2 px-2">Total frais de service</td>
                 <td className="py-2 px-2 text-right text-green-700">{fmtEuro(platformRevenue)}</td>
               </tr></tfoot>
             </table>
