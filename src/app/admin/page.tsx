@@ -1129,7 +1129,8 @@ export default function AdminPage() {
                 <p className="text-sm text-gray-400 text-center py-6">Aucune demande pour l&apos;instant.</p>
               )}
               {merchants.map((m) => (
-                <div key={m.id} className="flex items-center justify-between gap-4 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <div key={m.id} className="bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between gap-4 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900">{m.name}</span>
@@ -1174,7 +1175,7 @@ export default function AdminPage() {
                       </button>
                     )}
                   </div>
-                </div>
+                </div>{/* fin flex row */}
                 {/* Panneau produits dépliable */}
                 {expandedMerchant === m.id && (
                   <div className="mt-2 border-t border-gray-200 pt-3">
@@ -1200,6 +1201,7 @@ export default function AdminPage() {
                     </p>
                   </div>
                 )}
+                </div>
               ))}
             </div>
           </Section>
