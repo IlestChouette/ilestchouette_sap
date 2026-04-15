@@ -213,6 +213,15 @@ export default function AdminPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [merchants, setMerchants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedMerchant, setExpandedMerchant] = useState<string | null>(null);
+  const [merchantProducts, setMerchantProducts] = useState<Record<string, any[]>>({});
+
+  async function loadMerchantProducts(merchantId: string) {
+    if (merchantProducts[merchantId]) { setExpandedMerchant(merchantId); return; }
+    const { data } = await supabase.from("merchant_products").select("*").eq("merchant_id", merchantId).order("category");
+    setMerchantProducts((prev) => ({ ...prev, [merchantId]: data ?? [] }));
+    setExpandedMerchant(merchantId);
+  }
 
   /* ─── Client modal ─── */
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
@@ -1137,6 +1146,10 @@ export default function AdminPage() {
                     <p className="text-xs text-gray-400">{m.email} {m.phone ? `· ${m.phone}` : ""} {m.siret ? `· SIRET: ${m.siret}` : ""}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => expandedMerchant === m.id ? setExpandedMerchant(null) : loadMerchantProducts(m.id)}
+                      className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold px-3 py-1.5 rounded-lg transition">
+                      🛍️ {expandedMerchant === m.id ? "Masquer" : "Produits"}
+                    </button>
                     {m.phone && (
                       <a href={`https://wa.me/${m.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour ${m.name}, votre inscription sur Il est chouette a été validée ! Voici vos accès : ilestchouette.fr/commercant/dashboard`)}`}
                         target="_blank" rel="noopener noreferrer"
@@ -1162,6 +1175,31 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
+                {/* Panneau produits dépliable */}
+                {expandedMerchant === m.id && (
+                  <div className="mt-2 border-t border-gray-200 pt-3">
+                    {(merchantProducts[m.id] ?? []).length === 0 ? (
+                      <p className="text-sm text-amber-600 font-medium text-center py-3">
+                        ⚠️ Aucun produit ajouté pour l&apos;instant — relancer le commerçant
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {(merchantProducts[m.id] ?? []).map((p: any) => (
+                          <div key={p.id} className={`text-xs rounded-lg px-3 py-2 border ${p.available ? "bg-white border-gray-200" : "bg-gray-50 border-gray-100 opacity-60"}`}>
+                            <div className="flex justify-between items-start gap-1">
+                              <span className="font-semibold text-gray-800">{p.name}</span>
+                              <span className="font-bold text-orange-600 shrink-0">{p.price?.toFixed(2)} €</span>
+                            </div>
+                            <div className="text-gray-400 mt-0.5">{p.category} {!p.available && "· Indisponible"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400 mt-2 text-right">
+                      {(merchantProducts[m.id] ?? []).length} produit(s) · <a href={`/commercant/dashboard`} target="_blank" className="text-blue-500 underline">Accès dashboard commerçant</a>
+                    </p>
+                  </div>
+                )}
               ))}
             </div>
           </Section>
