@@ -1160,16 +1160,18 @@ export default function AdminPage() {
                     )}
                     {m.status !== "active" && (
                       <button onClick={async () => {
-                        await supabase.from("merchants").update({ status: "active" }).eq("id", m.id);
-                        setMerchants((prev) => prev.map((x) => x.id === m.id ? { ...x, status: "active" } : x));
+                        const res = await fetch("/api/admin/merchant", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: m.id, status: "active" }) });
+                        if (res.ok) setMerchants((prev) => prev.map((x) => x.id === m.id ? { ...x, status: "active" } : x));
+                        else alert("Erreur lors de la validation");
                       }} className="text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold px-3 py-1.5 rounded-lg transition">
                         Valider
                       </button>
                     )}
                     {m.status !== "rejected" && (
                       <button onClick={async () => {
-                        await supabase.from("merchants").update({ status: "rejected" }).eq("id", m.id);
-                        setMerchants((prev) => prev.map((x) => x.id === m.id ? { ...x, status: "rejected" } : x));
+                        const res = await fetch("/api/admin/merchant", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: m.id, status: "rejected" }) });
+                        if (res.ok) setMerchants((prev) => prev.map((x) => x.id === m.id ? { ...x, status: "rejected" } : x));
+                        else alert("Erreur lors du refus");
                       }} className="text-xs border border-red-200 text-red-500 hover:bg-red-50 font-semibold px-3 py-1.5 rounded-lg transition">
                         Refuser
                       </button>
