@@ -566,7 +566,14 @@ function FinishModal({
         </Pressable>
 
         <Text style={styles.modalTitle}>✍️ Signature du client</Text>
-        <Text style={styles.signatureHint}>Demandez au client de signer ci-dessous pour confirmer la réception</Text>
+        <Text style={styles.signatureHint}>Demandez au client de signer ci-dessous</Text>
+
+        {/* Texte légal */}
+        <View style={styles.legalBox}>
+          <Text style={styles.legalText}>
+            En signant, le client certifie avoir reçu sa commande en bon état et de manière complète. Cette signature vaut preuve de livraison.
+          </Text>
+        </View>
 
         <View style={styles.signatureBox}>
           <SignatureCanvas
@@ -1166,7 +1173,9 @@ const styles = StyleSheet.create({
   paymentBtnText: { fontSize: 12, fontWeight: '600', color: '#374151' },
   paymentBtnTextActive: { color: '#fff' },
   invoiceHint: { fontSize: 12, color: '#1B5E9B', fontStyle: 'italic', marginTop: 6, textAlign: 'center' },
-  signatureHint: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 12 },
+  signatureHint: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginBottom: 8 },
+  legalBox: { backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0', borderRadius: 10, padding: 10, marginBottom: 10 },
+  legalText: { fontSize: 11, color: '#166534', lineHeight: 16, textAlign: 'center' },
   signatureBox: { height: 220, borderWidth: 1.5, borderColor: '#E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 8 },
   backBtn: { alignSelf: 'flex-start', marginBottom: 8 },
   backBtnText: { color: '#6B7280', fontSize: 14, fontWeight: '600' },

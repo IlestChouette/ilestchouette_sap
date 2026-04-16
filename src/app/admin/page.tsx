@@ -50,6 +50,7 @@ type Assignment = {
   status: string;
   assigned_at: string | null;
   payment_method: string | null;
+  signature_url: string | null;
 };
 
 type Courier = {
@@ -983,14 +984,27 @@ export default function AdminPage() {
                           {fmtEuro(o.price_total)}
                         </td>
                         <td className="py-3 text-right">
-                          {o.status !== "annulee" && o.status !== "livree" && (
-                            <button
-                              onClick={() => { setCancelOrderId(o.id); setCancelReason(""); }}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 transition"
-                            >
-                              Annuler
-                            </button>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            {asgn?.signature_url && (
+                              <a
+                                href={asgn.signature_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition"
+                                title="Voir la signature de réception"
+                              >
+                                🖊️ Signature
+                              </a>
+                            )}
+                            {o.status !== "annulee" && o.status !== "livree" && (
+                              <button
+                                onClick={() => { setCancelOrderId(o.id); setCancelReason(""); }}
+                                className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 transition"
+                              >
+                                Annuler
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
