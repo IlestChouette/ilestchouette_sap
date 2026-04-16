@@ -16,18 +16,20 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  const [ordRes, assRes, courRes, merRes, authUsersRes] = await Promise.all([
+  const [ordRes, assRes, courRes, merRes, authUsersRes, profilesRes] = await Promise.all([
     supabaseAdmin.from("orders").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.from("assignments").select("*").order("assigned_at", { ascending: false }),
     supabaseAdmin.from("couriers").select("*"),
     supabaseAdmin.from("merchants").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
+    supabaseAdmin.from("profiles").select("id"),
   ]);
 
-  // Filtrer les users qui ne sont pas des coursiers (pas dans la table couriers)
+  // Exclure les coursiers SAUF s'ils ont aussi un profil client (inscrits via app client)
   const courierEmails = new Set((courRes.data ?? []).map((c: any) => c.email));
+  const profileIds = new Set((profilesRes.data ?? []).map((p: any) => p.id));
   const customers = (authUsersRes.data?.users ?? [])
-    .filter((u) => !courierEmails.has(u.email))
+    .filter((u) => !courierEmails.has(u.email) || profileIds.has(u.id))
     .map((u) => ({
       id: u.id,
       email: u.email ?? "",
