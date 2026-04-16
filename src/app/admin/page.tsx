@@ -63,13 +63,10 @@ type Courier = {
 
 type Customer = {
   id: string;
-  phone: string;
-  first_name: string | null;
-  last_name: string | null;
-  address: string | null;
-  zipcode: string | null;
-  city: string | null;
-  preferences: string | null;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  preferred_language: string | null;
   created_at: string;
 };
 
@@ -1040,21 +1037,20 @@ export default function AdminPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
-                    <th className="pb-3 pr-4">Nom</th>
+                    <th className="pb-3 pr-4">Nom / Email</th>
                     <th className="pb-3 pr-4">Téléphone</th>
-                    <th className="pb-3 pr-4">Ville</th>
+                    <th className="pb-3 pr-4">Inscrit le</th>
                     <th className="pb-3 pr-4 text-right">Commandes</th>
                     <th className="pb-3 text-right">CA total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {customers.map((c) => {
-                    const cOrders = orders.filter((o) => o.customer_id === c.id);
+                    const cOrders = orders.filter((o) => (o as any).client_email === c.email);
                     const cCA = cOrders
                       .filter((o) => o.status === "terminee")
                       .reduce((s, o) => s + (o.price_total ?? 0), 0);
-                    const name =
-                      [c.first_name, c.last_name].filter(Boolean).join(" ") || "—";
+                    const name = c.full_name || c.email || "—";
                     return (
                       <tr
                         key={c.id}
@@ -1063,13 +1059,11 @@ export default function AdminPage() {
                       >
                         <td className="py-3 pr-4">
                           <p className="font-medium text-blue-700 hover:underline">{name}</p>
-                          <p className="text-xs text-gray-400">
-                            {new Date(c.created_at).toLocaleDateString("fr-FR")}
-                          </p>
+                          <p className="text-xs text-gray-400">{c.email}</p>
                         </td>
-                        <td className="py-3 pr-4 text-gray-700">{c.phone}</td>
+                        <td className="py-3 pr-4 text-gray-700">{c.phone || "—"}</td>
                         <td className="py-3 pr-4 text-gray-500">
-                          {[c.city, c.zipcode].filter(Boolean).join(" ") || "—"}
+                          {new Date(c.created_at).toLocaleDateString("fr-FR")}
                         </td>
                         <td className="py-3 pr-4 text-right text-gray-700">{cOrders.length}</td>
                         <td className="py-3 text-right font-semibold text-gray-900">
@@ -1113,10 +1107,10 @@ export default function AdminPage() {
                   {orders
                     .filter((o) => (o as any).wants_invoice)
                     .map((o) => {
-                      const cust = customers.find((c) => c.id === o.customer_id);
+                      const cust = customers.find((c) => c.email === (o as any).client_email);
                       const custName = cust
-                        ? [cust.first_name, cust.last_name].filter(Boolean).join(" ") || cust.phone
-                        : "—";
+                        ? cust.full_name || cust.email || cust.phone || "—"
+                        : (o as any).client_email || "—";
                       const statusColor = STATUS_COLORS[o.status] ?? "#9ca3af";
                       return (
                         <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50">
@@ -1545,11 +1539,12 @@ export default function AdminPage() {
                 <div className="flex items-start justify-between p-6 border-b border-gray-100">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">
-                      {[selectedClient.first_name, selectedClient.last_name]
-                        .filter(Boolean)
-                        .join(" ") || "Client sans nom"}
+                      {selectedClient.full_name || "Client sans nom"}
                     </h2>
-                    <p className="text-sm text-gray-500 mt-0.5">{selectedClient.phone}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{selectedClient.email}</p>
+                    {selectedClient.phone && (
+                      <p className="text-sm text-gray-500">{selectedClient.phone}</p>
+                    )}
                   </div>
                   <button
                     onClick={() => setSelectedClient(null)}
@@ -1562,11 +1557,11 @@ export default function AdminPage() {
                 {/* Infos client */}
                 <div className="p-6 grid grid-cols-2 gap-4 border-b border-gray-100">
                   <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Adresse</p>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Langue</p>
                     <p className="text-sm text-gray-800">
-                      {[selectedClient.address, selectedClient.zipcode, selectedClient.city]
-                        .filter(Boolean)
-                        .join(", ") || "—"}
+                      {selectedClient.preferred_language === "fr" ? "Français" :
+                       selectedClient.preferred_language === "es" ? "Español" :
+                       selectedClient.preferred_language || "—"}
                     </p>
                   </div>
                   <div>
@@ -1577,24 +1572,16 @@ export default function AdminPage() {
                       })}
                     </p>
                   </div>
-                  {selectedClient.preferences && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Notes / Préférences</p>
-                      <p className="text-sm text-gray-800 bg-yellow-50 rounded-lg p-3">
-                        {selectedClient.preferences}
-                      </p>
-                    </div>
-                  )}
                 </div>
 
                 {/* Commandes du client */}
                 <div className="p-6">
                   <h3 className="text-sm font-semibold text-gray-700 mb-4">
                     Historique des commandes (
-                    {orders.filter((o) => o.customer_id === selectedClient.id).length})
+                    {orders.filter((o) => (o as any).client_email === selectedClient.email).length})
                   </h3>
                   {(() => {
-                    const clientOrders = orders.filter((o) => o.customer_id === selectedClient.id);
+                    const clientOrders = orders.filter((o) => (o as any).client_email === selectedClient.email);
                     const clientCA = clientOrders
                       .filter((o) => o.status === "terminee")
                       .reduce((s, o) => s + (o.price_total ?? 0), 0);

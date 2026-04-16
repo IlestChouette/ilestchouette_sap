@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, AppState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { registerForPushNotifications, savePushToken } from '@/lib/notifications';
-import { playMissionSound } from '@/lib/sound';
+import { playMissionSound, stopMissionSound } from '@/lib/sound';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -58,21 +58,54 @@ export default function RootLayout() {
       }
     });
 
-    // Notification reçue quand l'app est AU PREMIER PLAN → son en boucle
     if (!isExpoGo) {
+      // Ne PAS jouer le son ici quand la push arrive en foreground :
+      // le Realtime le fait déjà immédiatement → évite le double son retardé.
+      // notifListener intentionnellement vide.
       notifListener.current = Notifications.addNotificationReceivedListener(() => {
-        playMissionSound();
+        // Son déjà géré par Realtime en foreground — ne rien faire
       });
 
-      // L'utilisateur TAPE sur une notification (arrière-plan ou fermée) → son en boucle
-      responseListener.current = Notifications.addNotificationResponseReceivedListener(() => {
-        playMissionSound();
+      // L'utilisateur TAPE sur une notification depuis l'arrière-plan ou app fermée
+      // → jouer le son seulement si une mission est encore en attente
+      responseListener.current = Notifications.addNotificationResponseReceivedListener(async () => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const email = sessionData.session?.user?.email;
+        if (!email) return;
+        const { data } = await supabase
+          .from('assignments')
+          .select('id')
+          .eq('courier_email', email)
+          .eq('status', 'assigned')
+          .limit(1);
+        if (data && data.length > 0) {
+          playMissionSound();
+        }
       });
     }
 
+    // ── AppState : quand l'app revient au premier plan, vérifier les nouvelles missions ──
+    const handleAppStateChange = async (nextState: string) => {
+      if (nextState === 'active') {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const email = sessionData.session?.user?.email;
+        if (!email) return;
+        const { data } = await supabase
+          .from('assignments')
+          .select('id')
+          .eq('courier_email', email)
+          .eq('status', 'assigned')
+          .limit(1);
+        if (data && data.length > 0) {
+          playMissionSound();
+        } else {
+          stopMissionSound();
+        }
+      }
+    };
+    const appStateSub = AppState.addEventListener('change', handleAppStateChange);
+
     // ── Realtime : nouvelle commande "pending" (toutes sources) ──────────────
-    // Ceci couvre les commandes venant de l'app client, du site opérateur,
-    // ou de toute autre source — sans dépendre des push notifications.
     const SERVICE_LABELS: Record<string, string> = {
       supermarket: '🛒 Courses supermarché',
       meds: '💊 Pharmacie',
@@ -115,6 +148,7 @@ export default function RootLayout() {
       listener.subscription.unsubscribe();
       notifListener.current?.remove();
       responseListener.current?.remove();
+      appStateSub.remove();
       supabase.removeChannel(realtimeChannel);
     };
   }, []);

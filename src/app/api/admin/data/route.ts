@@ -20,7 +20,7 @@ export async function GET() {
     supabaseAdmin.from("orders").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.from("assignments").select("*").order("assigned_at", { ascending: false }),
     supabaseAdmin.from("couriers").select("*"),
-    supabaseAdmin.from("customers").select("*").order("created_at", { ascending: false }),
+    supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.from("merchants").select("*").order("created_at", { ascending: false }),
   ]);
 
@@ -28,7 +28,7 @@ export async function GET() {
     orders: ordRes.data ?? [],
     assignments: assRes.data ?? [],
     couriers: courRes.data ?? [],
-    customers: custRes.data ?? [],
+    customers: custRes.data ?? [], // profiles table
     merchants: merRes.data ?? [],
   });
 }
