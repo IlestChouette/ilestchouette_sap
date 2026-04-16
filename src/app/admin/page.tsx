@@ -745,24 +745,51 @@ export default function AdminPage() {
                 const dot = isBlocked ? "🔴" : isOnMission ? "🟡" : "🟢";
 
                 return (
-                  <div key={c.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-900 text-sm truncate">{name}</p>
-                      <p className="text-xs text-gray-400 truncate">{c.email}</p>
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1 ${statusColor}`}>
-                        {dot} {statusLabel}
-                      </span>
+                  <div key={c.id} className="bg-gray-50 rounded-xl border border-gray-100 px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-gray-900 text-sm truncate">{name}</p>
+                        <p className="text-xs text-gray-400 truncate">{c.email}</p>
+                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full mt-1 ${statusColor}`}>
+                          {dot} {statusLabel}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        {isOnMission && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Annuler la mission de ${name} et remettre la commande en attente ?`)) return;
+                              const res = await fetch("/api/admin/cancel-mission", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ assignmentId: activeMission.id, orderId: activeMission.order_id }),
+                              });
+                              if (res.ok) {
+                                setAssignments(prev => prev.map(a => a.id === activeMission.id ? { ...a, status: "annulee" } : a));
+                              } else alert("Erreur lors de l'annulation");
+                            }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg transition bg-amber-500 hover:bg-amber-600 text-white"
+                          >
+                            ⛔ Annuler mission
+                          </button>
+                        )}
+                        <button
+                          onClick={() => toggleBlockCourier(c)}
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition ${
+                            isBlocked
+                              ? "bg-green-500 hover:bg-green-600 text-white"
+                              : "bg-red-500 hover:bg-red-600 text-white"
+                          }`}
+                        >
+                          {isBlocked ? "Débloquer" : "Bloquer"}
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => toggleBlockCourier(c)}
-                      className={`ml-3 text-xs font-semibold px-3 py-1.5 rounded-lg transition ${
-                        isBlocked
-                          ? "bg-green-500 hover:bg-green-600 text-white"
-                          : "bg-red-500 hover:bg-red-600 text-white"
-                      }`}
-                    >
-                      {isBlocked ? "Débloquer" : "Bloquer"}
-                    </button>
+                    {isOnMission && activeMission.order_id && (
+                      <div className="mt-2 text-xs text-yellow-700 bg-yellow-50 rounded-lg px-3 py-1.5 border border-yellow-200">
+                        🚴 En mission · commande {activeMission.order_id.slice(0, 8)}…
+                      </div>
+                    )}
                   </div>
                 );
               })}

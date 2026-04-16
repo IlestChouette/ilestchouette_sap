@@ -44,12 +44,13 @@ export default function SuiviScreen() {
       await loadOrders(email);
 
       channel = supabase
-        .channel('client-order-updates')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
-          const updated = payload.new as Order & { cancellation_reason?: string };
-          if (updated.client_email === email) {
+        .channel(`client-order-updates-${email}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'orders', filter: `client_email=eq.${email}` },
+          (payload) => {
+            const updated = payload.new as Order & { cancellation_reason?: string };
             if (updated.status === 'annulee' && updated.cancellation_reason === 'no_courier') {
-              // Annulation automatique — montrer le modal
               setCancelledOrder(updated);
               setOrders(prev => prev.filter(o => o.id !== updated.id));
             } else if (updated.status === 'terminee' || updated.status === 'annulee') {
@@ -58,8 +59,14 @@ export default function SuiviScreen() {
               setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
             }
           }
-        })
-        .subscribe();
+        )
+        .subscribe((status) => {
+          // Fallback si la subscription échoue : recharger toutes les 15s
+          if (status === 'CHANNEL_ERROR') {
+            const interval = setInterval(() => loadOrders(email, true), 15000);
+            return () => clearInterval(interval);
+          }
+        });
     }
     init();
     return () => { channel?.unsubscribe(); };
