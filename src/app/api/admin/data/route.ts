@@ -25,16 +25,26 @@ export async function GET() {
     supabaseAdmin.from("customers").select("*"),
   ]);
 
-  const courierEmails = new Set((courRes.data ?? []).map((c: any) => c.email));
+  // Map email → nom depuis la table couriers (pour les coursiers sans metadata)
+  const courierByEmail = new Map((courRes.data ?? []).map((c: any) => [
+    c.email,
+    [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
+  ]));
+  const courierEmails = new Set(courierByEmail.keys());
 
   // Clients depuis auth.users (inscrits via app)
   const authEmails = new Set<string>();
   const fromAuth = (authUsersRes.data?.users ?? []).map((u) => {
     authEmails.add(u.email ?? "");
+    // Priorité : metadata > table couriers (pour ceux créés manuellement)
+    const full_name =
+      u.user_metadata?.full_name ||
+      courierByEmail.get(u.email ?? "") ||
+      null;
     return {
       id: u.id,
       email: u.email ?? "",
-      full_name: u.user_metadata?.full_name ?? null,
+      full_name,
       phone: u.user_metadata?.phone ?? u.phone ?? null,
       preferred_language: u.user_metadata?.preferred_language ?? null,
       created_at: u.created_at,
