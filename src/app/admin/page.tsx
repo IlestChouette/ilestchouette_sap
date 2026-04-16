@@ -557,6 +557,14 @@ export default function AdminPage() {
           >
             📊 Google Analytics
           </a>
+          <a
+            href="https://search.google.com/search-console"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition"
+          >
+            🔍 Search Console
+          </a>
           <Link
             href="/operateur"
             className="text-sm text-blue-600 hover:underline"
