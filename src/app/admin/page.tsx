@@ -68,6 +68,8 @@ type Customer = {
   phone: string | null;
   preferred_language: string | null;
   created_at: string;
+  is_courier?: boolean;
+  source?: "app" | "manual";
 };
 
 /* ─── Constantes ─────────────────────────────────────── */
@@ -133,11 +135,13 @@ function KpiCard({
   value,
   sub,
   color = "blue",
+  anchor,
 }: {
   label: string;
   value: string;
   sub?: string;
   color?: "blue" | "green" | "orange" | "purple";
+  anchor?: string;
 }) {
   const bg = {
     blue: "from-blue-600 to-blue-800",
@@ -145,19 +149,27 @@ function KpiCard({
     orange: "from-orange-500 to-orange-700",
     purple: "from-violet-600 to-violet-800",
   }[color];
+  const handleClick = () => {
+    if (!anchor) return;
+    document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   return (
-    <div className={`bg-gradient-to-br ${bg} rounded-2xl p-5 text-white shadow-lg`}>
+    <div
+      className={`bg-gradient-to-br ${bg} rounded-2xl p-5 text-white shadow-lg ${anchor ? "cursor-pointer hover:opacity-90 transition-opacity" : ""}`}
+      onClick={handleClick}
+    >
       <p className="text-sm opacity-80 mb-1">{label}</p>
       <p className="text-3xl font-bold">{value}</p>
       {sub && <p className="text-xs opacity-70 mt-1">{sub}</p>}
+      {anchor && <p className="text-xs opacity-50 mt-2">↓ voir section</p>}
     </div>
   );
 }
 
 /* ─── Section wrapper ────────────────────────────────── */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+    <div id={id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 scroll-mt-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-5">{title}</h2>
       {children}
     </div>
@@ -609,18 +621,21 @@ export default function AdminPage() {
               value={String(orders.length)}
               sub={ordersThisMonth.length + " ce mois"}
               color="orange"
+              anchor="section-commandes"
             />
             <KpiCard
               label="Clients"
               value={String(customers.length)}
               sub="inscrits"
               color="purple"
+              anchor="section-clients"
             />
             <KpiCard
               label="Coursiers"
               value={String(couriers.length)}
               sub="enregistrés"
               color="blue"
+              anchor="section-coursiers"
             />
             <KpiCard
               label="Taux complétion"
@@ -733,7 +748,7 @@ export default function AdminPage() {
           </Section>
 
           {/* ── Statut coursiers ── */}
-          <Section title="Coursiers">
+          <Section title="Coursiers" id="section-coursiers">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {couriers.map((c) => {
                 const activeMission = assignments.find(
@@ -882,7 +897,7 @@ export default function AdminPage() {
           </Section>
 
           {/* ── Tableau commandes ── */}
-          <Section title="Toutes les commandes">
+          <Section title="Toutes les commandes" id="section-commandes">
             {/* Filtres */}
             <div className="flex flex-wrap gap-3 mb-5">
               <input
@@ -1032,7 +1047,7 @@ export default function AdminPage() {
           </Section>
 
           {/* ── Liste clients ── */}
-          <Section title={`Clients (${customers.length})`}>
+          <Section title={`Clients (${customers.length})`} id="section-clients">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -1058,7 +1073,15 @@ export default function AdminPage() {
                         onClick={() => setSelectedClient(c)}
                       >
                         <td className="py-3 pr-4">
-                          <p className="font-medium text-blue-700 hover:underline">{name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-blue-700 hover:underline">{name}</p>
+                            {c.is_courier && (
+                              <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-medium">Coursier</span>
+                            )}
+                            {c.source === "manual" && (
+                              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">Manuel</span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-400">{c.email}</p>
                         </td>
                         <td className="py-3 pr-4 text-gray-700">{c.phone || "—"}</td>
@@ -1578,10 +1601,16 @@ export default function AdminPage() {
                 <div className="p-6">
                   <h3 className="text-sm font-semibold text-gray-700 mb-4">
                     Historique des commandes (
-                    {orders.filter((o) => (o as any).client_email === selectedClient.email).length})
+                    {orders.filter((o) =>
+                      (o as any).client_email === selectedClient.email ||
+                      (selectedClient.source === "manual" && o.customer_id === selectedClient.id)
+                    ).length})
                   </h3>
                   {(() => {
-                    const clientOrders = orders.filter((o) => (o as any).client_email === selectedClient.email);
+                    const clientOrders = orders.filter((o) =>
+                      (o as any).client_email === selectedClient.email ||
+                      (selectedClient.source === "manual" && o.customer_id === selectedClient.id)
+                    );
                     const clientCA = clientOrders
                       .filter((o) => o.status === "terminee")
                       .reduce((s, o) => s + (o.price_total ?? 0), 0);

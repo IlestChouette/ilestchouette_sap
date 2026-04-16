@@ -16,29 +16,50 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  const [ordRes, assRes, courRes, merRes, authUsersRes, profilesRes] = await Promise.all([
+  const [ordRes, assRes, courRes, merRes, authUsersRes, oldCustRes] = await Promise.all([
     supabaseAdmin.from("orders").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.from("assignments").select("*").order("assigned_at", { ascending: false }),
     supabaseAdmin.from("couriers").select("*"),
     supabaseAdmin.from("merchants").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
-    supabaseAdmin.from("profiles").select("id"),
+    supabaseAdmin.from("customers").select("*"),
   ]);
 
-  // Exclure les coursiers SAUF s'ils ont aussi un profil client (inscrits via app client)
   const courierEmails = new Set((courRes.data ?? []).map((c: any) => c.email));
-  const profileIds = new Set((profilesRes.data ?? []).map((p: any) => p.id));
-  const customers = (authUsersRes.data?.users ?? [])
-    .filter((u) => !courierEmails.has(u.email) || profileIds.has(u.id))
-    .map((u) => ({
+
+  // Clients depuis auth.users (inscrits via app)
+  const authEmails = new Set<string>();
+  const fromAuth = (authUsersRes.data?.users ?? []).map((u) => {
+    authEmails.add(u.email ?? "");
+    return {
       id: u.id,
       email: u.email ?? "",
       full_name: u.user_metadata?.full_name ?? null,
       phone: u.user_metadata?.phone ?? u.phone ?? null,
       preferred_language: u.user_metadata?.preferred_language ?? null,
       created_at: u.created_at,
-    }))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      is_courier: courierEmails.has(u.email ?? ""),
+      source: "app" as const,
+    };
+  });
+
+  // Anciens clients manuels (table customers) — dédupliqués si déjà dans auth
+  const fromManual = (oldCustRes.data ?? [])
+    .filter((c: any) => !c.email || !authEmails.has(c.email))
+    .map((c: any) => ({
+      id: c.id,
+      email: c.email ?? "",
+      full_name: [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
+      phone: c.phone ?? null,
+      preferred_language: null,
+      created_at: c.created_at,
+      is_courier: false,
+      source: "manual" as const,
+    }));
+
+  const customers = [...fromAuth, ...fromManual].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
   return NextResponse.json({
     orders: ordRes.data ?? [],
