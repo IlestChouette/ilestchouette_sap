@@ -16,19 +16,33 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  const [ordRes, assRes, courRes, custRes, merRes] = await Promise.all([
+  const [ordRes, assRes, courRes, merRes, authUsersRes] = await Promise.all([
     supabaseAdmin.from("orders").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.from("assignments").select("*").order("assigned_at", { ascending: false }),
     supabaseAdmin.from("couriers").select("*"),
-    supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false }),
     supabaseAdmin.from("merchants").select("*").order("created_at", { ascending: false }),
+    supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
   ]);
+
+  // Filtrer les users qui ne sont pas des coursiers (pas dans la table couriers)
+  const courierEmails = new Set((courRes.data ?? []).map((c: any) => c.email));
+  const customers = (authUsersRes.data?.users ?? [])
+    .filter((u) => !courierEmails.has(u.email))
+    .map((u) => ({
+      id: u.id,
+      email: u.email ?? "",
+      full_name: u.user_metadata?.full_name ?? null,
+      phone: u.user_metadata?.phone ?? u.phone ?? null,
+      preferred_language: u.user_metadata?.preferred_language ?? null,
+      created_at: u.created_at,
+    }))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return NextResponse.json({
     orders: ordRes.data ?? [],
     assignments: assRes.data ?? [],
     couriers: courRes.data ?? [],
-    customers: custRes.data ?? [], // profiles table
+    customers,
     merchants: merRes.data ?? [],
   });
 }
