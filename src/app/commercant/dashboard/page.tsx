@@ -57,6 +57,7 @@ export default function MerchantDashboard() {
 
   // Edit product
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [priceInput, setPriceInput] = useState(""); // saisie du prix comme string
   const [savingProduct, setSavingProduct] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -161,21 +162,24 @@ export default function MerchantDashboard() {
 
   async function saveProduct() {
     if (!editingProduct || !merchant) return;
+    const parsedPrice = parseFloat(priceInput.replace(",", "."));
+    if (isNaN(parsedPrice) || parsedPrice <= 0) { alert("Prix invalide"); return; }
+    const productWithPrice = { ...editingProduct, price: parsedPrice };
     setSavingProduct(true);
-    if (editingProduct.id) {
+    if (productWithPrice.id) {
       const { error } = await supabase.from("merchant_products").update({
-        name: editingProduct.name, description: editingProduct.description,
-        price: editingProduct.price, category: editingProduct.category,
-        available: editingProduct.available, image_url: editingProduct.image_url ?? null,
-      }).eq("id", editingProduct.id);
+        name: productWithPrice.name, description: productWithPrice.description,
+        price: productWithPrice.price, category: productWithPrice.category,
+        available: productWithPrice.available, image_url: productWithPrice.image_url ?? null,
+      }).eq("id", productWithPrice.id);
       if (error) { alert("Erreur modification : " + error.message); setSavingProduct(false); return; }
-      setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? { ...p, ...editingProduct } as Product : p));
+      setProducts((prev) => prev.map((p) => p.id === productWithPrice.id ? { ...p, ...productWithPrice } as Product : p));
     } else {
       const { data, error } = await supabase.from("merchant_products").insert([{
-        merchant_id: merchant.id, name: editingProduct.name,
-        description: editingProduct.description, price: editingProduct.price,
-        category: editingProduct.category, available: true,
-        image_url: editingProduct.image_url ?? null,
+        merchant_id: merchant.id, name: productWithPrice.name,
+        description: productWithPrice.description, price: productWithPrice.price,
+        category: productWithPrice.category, available: true,
+        image_url: productWithPrice.image_url ?? null,
       }]).select().single();
       if (error) { alert("Erreur : " + error.message); setSavingProduct(false); return; }
       if (data) setProducts((prev) => [...prev, data as Product]);
@@ -399,7 +403,7 @@ export default function MerchantDashboard() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">Vos produits ({products.length})</h2>
-              <button onClick={() => setEditingProduct({ name: "", description: "", price: 0, category: "", available: true })}
+              <button onClick={() => { setEditingProduct({ name: "", description: "", price: 0, category: "", available: true }); setPriceInput(""); }}
                 className="bg-orange-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-orange-600 transition">
                 + Ajouter
               </button>
@@ -431,7 +435,7 @@ export default function MerchantDashboard() {
                     className={`text-xs font-semibold px-2 py-1 rounded-full transition ${p.available ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                     {p.available ? "Dispo" : "Indispo"}
                   </button>
-                  <button onClick={() => setEditingProduct(p)} className="bg-orange-100 text-orange-600 hover:bg-orange-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Modifier</button>
+                  <button onClick={() => { setEditingProduct(p); setPriceInput(String(p.price ?? "")); }} className="bg-orange-100 text-orange-600 hover:bg-orange-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Modifier</button>
                   <button onClick={() => deleteProduct(p.id)} className="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Suppr.</button>
                 </div>
               </div>
@@ -470,11 +474,8 @@ export default function MerchantDashboard() {
                 <input
                   type="text"
                   inputMode="decimal"
-                  value={String(editingProduct.price ?? "")}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(",", ".");
-                    setEditingProduct((p) => ({ ...p, price: v === "" ? 0 : parseFloat(v) || 0 }));
-                  }}
+                  value={priceInput}
+                  onChange={(e) => setPriceInput(e.target.value)}
                   placeholder="14.50"
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                 />
