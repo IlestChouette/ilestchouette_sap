@@ -318,7 +318,10 @@ export default function CommanderScreen() {
       dropoff_address: o.dropoff_address,
       notes: o.notes ?? null,
       price_total: o.price_total,
-      price_items: o.price_items ?? 0,
+      // Services purs (sans achats) : price_items toujours 0
+      price_items: ['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id)
+        ? (o.price_items ?? 0)
+        : 0,
       status: 'pending',
       scheduled_at: o.scheduled_at ?? null,
       payment_method: o.payment_method,
@@ -469,10 +472,10 @@ export default function CommanderScreen() {
                         <ConfirmRow label="Livraison" value={o.dropoff_address} />
                         {o.notes ? <ConfirmRow label="Détails" value={o.notes} /> : null}
                         <ConfirmRow label="Horaire" value={o.is_asap ? '⚡ À faire tout de suite' : o.scheduled_at ?? 'Planifié'} />
-                        {o.price_items ? (
-                          <ConfirmRow label="🛒 Articles (à payer au coursier)" value={`${o.price_items.toFixed(2)} €`} />
+                        {(['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id) && (o.price_items ?? 0) > 0) ? (
+                          <ConfirmRow label="🛒 Articles (à payer au coursier)" value={`${(o.price_items ?? 0).toFixed(2)} €`} />
                         ) : null}
-                        <ConfirmRow label="⚡ Frais de service" value={`${(o.price_total - (o.price_items ?? 0)).toFixed(2)} €`} />
+                        <ConfirmRow label="⚡ Frais de service" value={`${(['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id) ? (o.price_total - (o.price_items ?? 0)) : o.price_total).toFixed(2)} €`} />
                       </View>
                       <View style={styles.confirmSubtotalRow}>
                         <Text style={styles.confirmRowLabel}>Sous-total</Text>

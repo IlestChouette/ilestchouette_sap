@@ -465,8 +465,35 @@ export default function MerchantDashboard() {
             <h3 className="text-lg font-bold text-gray-900">{editingProduct.id ? "Modifier le produit" : "Nouveau produit"}</h3>
             <EField label="Nom *" value={editingProduct.name ?? ""} onChange={(v) => setEditingProduct((p) => ({ ...p, name: v }))} />
             <div className="grid grid-cols-2 gap-3">
-              <EField label="Prix (€) *" value={String(editingProduct.price ?? "")} onChange={(v) => setEditingProduct((p) => ({ ...p, price: parseFloat(v) || 0 }))} type="number" />
-              <EField label="Catégorie" value={editingProduct.category ?? ""} onChange={(v) => setEditingProduct((p) => ({ ...p, category: v }))} />
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Prix (€) *</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={String(editingProduct.price ?? "")}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(",", ".");
+                    setEditingProduct((p) => ({ ...p, price: v === "" ? 0 : parseFloat(v) || 0 }));
+                  }}
+                  placeholder="14.50"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Catégorie</label>
+                <input
+                  list="product-categories"
+                  value={editingProduct.category ?? ""}
+                  onChange={(e) => setEditingProduct((p) => ({ ...p, category: e.target.value }))}
+                  placeholder="Pizza, Boisson…"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <datalist id="product-categories">
+                  {Array.from(new Set(products.map((p) => p.category).filter(Boolean))).map((cat) => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
+              </div>
             </div>
             <EField label="Description" value={editingProduct.description ?? ""} onChange={(v) => setEditingProduct((p) => ({ ...p, description: v }))} />
 

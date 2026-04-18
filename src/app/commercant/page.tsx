@@ -13,12 +13,9 @@ const CATEGORIES = [
   "Beauté / Bien-être", "Autre",
 ];
 
-type Product = { name: string; description: string; price: string; category: string };
-
-const emptyProduct = (): Product => ({ name: "", description: "", price: "", category: "" });
 
 export default function CommercantPage() {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -37,20 +34,6 @@ export default function CommercantPage() {
   // Conditions
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  // Produits
-  const [products, setProducts] = useState<Product[]>([emptyProduct()]);
-
-  function updateProduct(i: number, field: keyof Product, value: string) {
-    setProducts((prev) => prev.map((p, idx) => idx === i ? { ...p, [field]: value } : p));
-  }
-
-  function addProduct() {
-    setProducts((prev) => [...prev, emptyProduct()]);
-  }
-
-  function removeProduct(i: number) {
-    setProducts((prev) => prev.filter((_, idx) => idx !== i));
-  }
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -74,17 +57,18 @@ export default function CommercantPage() {
 
       if (mErr) throw new Error(mErr.message);
 
-      const validProducts = products.filter((p) => p.name.trim() && p.price);
-      if (validProducts.length > 0) {
-        await supabase.from("merchant_products").insert(
-          validProducts.map((p) => ({
-            merchant_id: merchant.id,
-            name: p.name,
-            description: p.description || null,
-            price: parseFloat(p.price),
-            category: p.category || null,
-          }))
-        );
+      // 3. Notifier l'admin par email
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/notify-new-merchant`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ name, category, email: email.trim().toLowerCase(), phone, address, siret: siret || null, opening_hours: openingHours || null }),
+        });
+      } catch (_) {
+        // Notification non bloquante
       }
 
       setDone(true);
@@ -192,19 +176,18 @@ export default function CommercantPage() {
       <div className="max-w-2xl mx-auto px-4 py-10">
         {/* Steps */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          {([1, 2, 3] as const).map((s) => (
+          {([1, 2] as const).map((s) => (
             <div key={s} className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
                 step >= s ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-500"
               }`}>{s}</div>
-              {s < 3 && <div className={`w-12 h-1 rounded ${step > s ? "bg-orange-500" : "bg-gray-200"}`} />}
+              {s < 2 && <div className={`w-12 h-1 rounded ${step > s ? "bg-orange-500" : "bg-gray-200"}`} />}
             </div>
           ))}
         </div>
         <div className="text-center text-sm text-gray-500 mb-6">
           {step === 1 && "Informations du commerce"}
-          {step === 2 && "Vos produits / menu"}
-          {step === 3 && "Récapitulatif"}
+          {step === 2 && "Récapitulatif"}
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
@@ -246,7 +229,7 @@ export default function CommercantPage() {
 
               <Field label="Numéro SIRET *" value={siret} onChange={setSiret} placeholder="362 521 879 00034" />
 
-              <button onClick={() => setStep(2)}
+              <button onClick={() => setStep(2 as any)}
                 disabled={!name || !category || !address || !email || !siret || password.length < 8}
                 className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 disabled:opacity-40 transition">
                 Continuer →
@@ -254,54 +237,8 @@ export default function CommercantPage() {
             </div>
           )}
 
-          {/* ÉTAPE 2 */}
+          {/* ÉTAPE 2 — Récapitulatif */}
           {step === 2 && (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">Vos produits / menu</h2>
-                <span className="text-sm text-gray-400">{products.filter(p => p.name).length} produit(s)</span>
-              </div>
-              <p className="text-sm text-gray-500">Ajoutez vos produits avec les prix. Vous pourrez les modifier à tout moment depuis votre espace.</p>
-
-              <div className="space-y-4">
-                {products.map((p, i) => (
-                  <div key={i} className="border border-gray-100 rounded-xl p-4 bg-gray-50 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-700">Produit {i + 1}</span>
-                      {products.length > 1 && (
-                        <button onClick={() => removeProduct(i)} className="text-red-400 hover:text-red-600 text-sm">✕ Supprimer</button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Nom *" value={p.name} onChange={(v) => updateProduct(i, "name", v)} placeholder="Pizza 4 fromages" />
-                      <Field label="Prix (€) *" value={p.price} onChange={(v) => updateProduct(i, "price", v)} placeholder="14.50" type="number" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Catégorie" value={p.category} onChange={(v) => updateProduct(i, "category", v)} placeholder="Pizza, Entrée…" />
-                      <Field label="Description" value={p.description} onChange={(v) => updateProduct(i, "description", v)} placeholder="Mozzarella, gorgonzola…" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <button onClick={addProduct}
-                className="w-full border-2 border-dashed border-orange-300 text-orange-500 font-semibold py-3 rounded-xl hover:bg-orange-50 transition">
-                + Ajouter un produit
-              </button>
-
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setStep(1)} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-4 rounded-xl hover:bg-gray-50 transition">
-                  ← Retour
-                </button>
-                <button onClick={() => setStep(3)} className="flex-2 flex-1 bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 transition">
-                  Continuer →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ÉTAPE 3 — Récapitulatif */}
-          {step === 3 && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">Récapitulatif</h2>
 
@@ -313,20 +250,6 @@ export default function CommercantPage() {
                 {phone && <div className="flex justify-between"><span className="text-gray-500">Téléphone</span><span className="font-semibold">{phone}</span></div>}
                 {openingHours && <div className="flex justify-between"><span className="text-gray-500">Horaires</span><span className="font-semibold text-right max-w-[60%]">{openingHours}</span></div>}
               </div>
-
-              {products.filter(p => p.name).length > 0 && (
-                <div>
-                  <p className="text-sm font-semibold text-gray-700 mb-2">{products.filter(p => p.name).length} produit(s) ajouté(s)</p>
-                  <div className="space-y-2">
-                    {products.filter(p => p.name).map((p, i) => (
-                      <div key={i} className="flex justify-between text-sm bg-gray-50 rounded-lg px-3 py-2">
-                        <span>{p.name}</span>
-                        <span className="font-bold text-orange-500">{parseFloat(p.price || "0").toFixed(2)} €</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Case à cocher conditions */}
               <label className="flex items-start gap-3 cursor-pointer">
@@ -348,7 +271,7 @@ export default function CommercantPage() {
               {error && <p className="text-red-500 text-sm bg-red-50 rounded-lg p-3">{error}</p>}
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setStep(2)} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-4 rounded-xl hover:bg-gray-50 transition">
+                <button onClick={() => setStep(1)} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-4 rounded-xl hover:bg-gray-50 transition">
                   ← Retour
                 </button>
                 <button onClick={handleSubmit} disabled={submitting || !acceptedTerms}

@@ -1217,6 +1217,13 @@ export default function AdminPage() {
                       className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold px-3 py-1.5 rounded-lg transition">
                       🛍️ {expandedMerchant === m.id ? "Masquer" : "Produits"}
                     </button>
+                    <button onClick={async () => {
+                      const res = await fetch("/api/admin/reset-merchant-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: m.email }) });
+                      if (res.ok) alert(`Email de réinitialisation envoyé à ${m.email}`);
+                      else alert("Erreur lors de l'envoi");
+                    }} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-1.5 rounded-lg transition">
+                      🔑 MDP
+                    </button>
                     {m.phone && (
                       <a href={`https://wa.me/${m.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Bonjour ${m.name}, votre inscription sur Il est chouette a été validée ! Voici vos accès : ilestchouette.fr/commercant/dashboard`)}`}
                         target="_blank" rel="noopener noreferrer"
