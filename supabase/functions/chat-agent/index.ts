@@ -2,8 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
-type MerchantProduct = { name: string; description?: string; price: number; category?: string };
-type Merchant = { id: string; name: string; address: string; category: string; opening_hours?: string; products?: MerchantProduct[] };
+type MerchantProduct = { name: string; description?: string; price: number; category?: string; is_featured?: boolean };
+type Merchant = { id: string; name: string; address: string; category: string; opening_hours?: string; closed_dates?: string[]; products?: MerchantProduct[]; distance_km?: number };
 
 function getNiceTime(): string {
   return new Date().toLocaleString("fr-FR", {
@@ -14,17 +14,26 @@ function getNiceTime(): string {
   });
 }
 
+function isMerchantClosedToday(m: Merchant): boolean {
+  if (!m.closed_dates || m.closed_dates.length === 0) return false;
+  const today = new Date().toLocaleDateString("sv"); // YYYY-MM-DD
+  return m.closed_dates.includes(today);
+}
+
 function buildMerchantsSection(merchants: Merchant[]): string {
   if (!merchants || merchants.length === 0) return "";
 
   const lines: string[] = [
     "",
     "PARTNER MERCHANTS (orders from these go through the platform):",
+    "NOTE: merchants are listed nearest-first when client location is known. Always propose the first matching merchant as primary option, and offer a second random one if asked.",
   ];
 
   for (const m of merchants) {
     const hours = m.opening_hours ? ` | Horaires : ${m.opening_hours}` : "";
-    lines.push(`\n🏪 ${m.name} — ${m.category} | ${m.address}${hours} | merchant_id: ${m.id}`);
+    const dist = m.distance_km != null ? ` | ~${m.distance_km.toFixed(1)} km` : "";
+    const closedToday = isMerchantClosedToday(m) ? " | ⚠️ FERMÉ AUJOURD'HUI (fermeture exceptionnelle)" : "";
+    lines.push(`\n🏪 ${m.name} — ${m.category} | ${m.address}${hours}${dist}${closedToday} | merchant_id: ${m.id}`);
     if (m.products && m.products.length > 0) {
       const grouped: Record<string, MerchantProduct[]> = {};
       for (const p of m.products) {
@@ -35,7 +44,9 @@ function buildMerchantsSection(merchants: Merchant[]): string {
       for (const [cat, items] of Object.entries(grouped)) {
         lines.push(`  ${cat}:`);
         for (const item of items) {
-          lines.push(`    • ${item.name} — ${item.price.toFixed(2)}€${item.description ? ` (${item.description})` : ""}`);
+          // Feature 3: mark featured items
+          const star = item.is_featured ? " ⭐" : "";
+          lines.push(`    •${star} ${item.name} — ${item.price.toFixed(2)}€${item.description ? ` (${item.description})` : ""}`);
         }
       }
     }
@@ -49,10 +60,37 @@ function buildMerchantsSection(merchants: Merchant[]): string {
     "- Set service_id to 'food'",
     "- Include merchant_id in the ACTION block",
     "- Calculate price_items as the sum of ordered items, price_total = price_items + delivery fee (5€ base + 1€/km)",
-    "- If the merchant is currently closed based on their opening hours, warn the client and suggest scheduling the order for when they open",
+    "- If the merchant is currently closed based on their opening hours or has an exceptional closure today, warn the client and suggest scheduling the order for when they open",
+    "- Items marked ⭐ are featured/recommended by the merchant — proactively suggest them when the client asks for recommendations",
+    "- When multiple merchants serve the same category, prefer the nearest one (listed first). If the client asks for alternatives, offer a different merchant from the list.",
   );
 
   return lines.join("\n");
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function sortMerchantsByDistance(merchants: Merchant[], clientLat?: number, clientLon?: number): Merchant[] {
+  if (clientLat == null || clientLon == null) return merchants;
+  return merchants
+    .map((m: any) => ({
+      ...m,
+      distance_km: (m.latitude != null && m.longitude != null)
+        ? haversineKm(clientLat, clientLon, m.latitude, m.longitude)
+        : undefined,
+    }))
+    .sort((a: Merchant, b: Merchant) => {
+      if (a.distance_km == null && b.distance_km == null) return 0;
+      if (a.distance_km == null) return 1;
+      if (b.distance_km == null) return -1;
+      return a.distance_km - b.distance_km;
+    });
 }
 
 function buildSystemPrompt(language: string, userName: string, savedAddresses: string, merchants: Merchant[]): string {
@@ -134,7 +172,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { messages = [], language = "fr", userName = "", savedAddresses = "", merchants = [] } = await req.json();
+    const { messages = [], language = "fr", userName = "", savedAddresses = "", merchants = [], clientLat, clientLon } = await req.json();
+    const sortedMerchants = sortMerchantsByDistance(merchants, clientLat, clientLon);
 
     const apiMessages = messages.length > 0
       ? messages
@@ -150,7 +189,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 1024,
-        system: buildSystemPrompt(language, userName, savedAddresses, merchants),
+        system: buildSystemPrompt(language, userName, savedAddresses, sortedMerchants),
         messages: apiMessages,
       }),
     });

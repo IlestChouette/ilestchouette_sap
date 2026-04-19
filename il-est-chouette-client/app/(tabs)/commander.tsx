@@ -71,6 +71,7 @@ export default function CommanderScreen() {
   const [savedAddresses, setSavedAddresses] = useState('');
   const [merchants, setMerchants] = useState<any[]>([]);
   const merchantsRef = useRef<any[]>([]);
+  const clientLocationRef = useRef<{ lat: number; lon: number } | null>(null);
 
   // Détecte si un nouveau service a été sélectionné depuis l'accueil.
   // Si oui : réinitialise la conversation. Sinon : charge une seule fois au premier affichage.
@@ -128,14 +129,14 @@ export default function CommanderScreen() {
       // Load active merchants + their products
       const { data: merchantList } = await supabase
         .from('merchants')
-        .select('id, name, address, category, opening_hours')
+        .select('id, name, address, category, opening_hours, closed_dates, latitude, longitude')
         .eq('status', 'active');
 
       let merchantsWithProducts: any[] = [];
       if (merchantList && merchantList.length > 0) {
         const { data: allProducts } = await supabase
           .from('merchant_products')
-          .select('merchant_id, name, description, price, category')
+          .select('merchant_id, name, description, price, category, is_featured')
           .in('merchant_id', merchantList.map((m: any) => m.id))
           .eq('available', true);
 
@@ -144,6 +145,17 @@ export default function CommanderScreen() {
           products: (allProducts ?? []).filter((p: any) => p.merchant_id === m.id),
         }));
       }
+
+      // Géolocalisation du client pour tri des commerçants (best-effort, pas bloquant)
+      try {
+        await new Promise<void>((resolve) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => { clientLocationRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude }; resolve(); },
+            () => resolve(),
+            { timeout: 3000, maximumAge: 60000 },
+          );
+        });
+      } catch { /* géoloc non disponible */ }
 
       merchantsRef.current = merchantsWithProducts;
       setMerchants(merchantsWithProducts);
@@ -181,6 +193,7 @@ export default function CommanderScreen() {
     merchantList?: any[],
   ) {
     try {
+      const loc = clientLocationRef.current;
       const { data, error } = await supabase.functions.invoke('chat-agent', {
         body: {
           messages: apiMessages,
@@ -188,6 +201,8 @@ export default function CommanderScreen() {
           userName: name,
           savedAddresses: addresses,
           merchants: merchantList ?? merchantsRef.current,
+          clientLat: loc?.lat,
+          clientLon: loc?.lon,
         },
       });
       if (error) {

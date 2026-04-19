@@ -10,21 +10,24 @@ const supabase = createClient(
 type Merchant = {
   id: string; name: string; address: string; category: string;
   phone: string; email: string; description: string; opening_hours: string;
-  siret: string; status: string;
+  siret: string; status: string; closed_dates?: string[];
 };
-type Product = { id: string; name: string; description: string; price: number; category: string; available: boolean; image_url?: string };
+type Product = {
+  id: string; name: string; description: string; price: number;
+  category: string; available: boolean; image_url?: string; is_featured?: boolean;
+};
 type MerchantOrder = {
   id: string; status: string; created_at: string;
   order: {
     dropoff_address: string; notes: string; price_total: number;
     client_email: string; client_name?: string; client_phone?: string;
+    scheduled_at?: string | null; is_asap?: boolean;
   };
 };
 
 function playOrderAlert() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    // Deux "ding" rapides — son de caisse enregistreuse / notification
     [0, 0.20].forEach((delay) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -57,9 +60,15 @@ export default function MerchantDashboard() {
 
   // Edit product
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
-  const [priceInput, setPriceInput] = useState(""); // saisie du prix comme string
+  const [priceInput, setPriceInput] = useState("");
   const [savingProduct, setSavingProduct] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Edit info (feature 4)
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [infoForm, setInfoForm] = useState({ opening_hours: "", closed_dates: [] as string[] });
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [newClosedDate, setNewClosedDate] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -84,10 +93,9 @@ export default function MerchantDashboard() {
           filter: `merchant_id=eq.${merchant.id}`,
         },
         async (payload: any) => {
-          // Récupérer les détails complets de la commande
           const { data } = await supabase
             .from("merchant_orders")
-            .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone)")
+            .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone,scheduled_at,is_asap)")
             .eq("id", payload.new.id)
             .single();
 
@@ -103,10 +111,8 @@ export default function MerchantDashboard() {
   }, [merchant?.id]);
 
   async function loadMerchantData(userId: string) {
-    // 1. Chercher par user_id
     let { data: m } = await supabase.from("merchants").select("*").eq("user_id", userId).limit(1).maybeSingle();
 
-    // 2. Si pas trouvé, chercher par email et auto-lier
     if (!m) {
       const { data: userData } = await supabase.auth.getUser();
       const email = userData.user?.email;
@@ -124,7 +130,8 @@ export default function MerchantDashboard() {
 
     const [{ data: p }, { data: o }] = await Promise.all([
       supabase.from("merchant_products").select("*").eq("merchant_id", m.id).order("category"),
-      supabase.from("merchant_orders").select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone)")
+      supabase.from("merchant_orders")
+        .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone,scheduled_at,is_asap)")
         .eq("merchant_id", m.id).order("created_at", { ascending: false }).limit(50),
     ]);
     setProducts((p ?? []) as Product[]);
@@ -171,6 +178,7 @@ export default function MerchantDashboard() {
         name: productWithPrice.name, description: productWithPrice.description,
         price: productWithPrice.price, category: productWithPrice.category,
         available: productWithPrice.available, image_url: productWithPrice.image_url ?? null,
+        is_featured: productWithPrice.is_featured ?? false,
       }).eq("id", productWithPrice.id);
       if (error) { alert("Erreur modification : " + error.message); setSavingProduct(false); return; }
       setProducts((prev) => prev.map((p) => p.id === productWithPrice.id ? { ...p, ...productWithPrice } as Product : p));
@@ -180,6 +188,7 @@ export default function MerchantDashboard() {
         description: productWithPrice.description, price: productWithPrice.price,
         category: productWithPrice.category, available: true,
         image_url: productWithPrice.image_url ?? null,
+        is_featured: productWithPrice.is_featured ?? false,
       }]).select().single();
       if (error) { alert("Erreur : " + error.message); setSavingProduct(false); return; }
       if (data) setProducts((prev) => [...prev, data as Product]);
@@ -198,6 +207,24 @@ export default function MerchantDashboard() {
   async function toggleAvailable(p: Product) {
     await supabase.from("merchant_products").update({ available: !p.available }).eq("id", p.id);
     setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, available: !pr.available } : pr));
+  }
+
+  async function toggleFeatured(p: Product) {
+    await supabase.from("merchant_products").update({ is_featured: !p.is_featured }).eq("id", p.id);
+    setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, is_featured: !pr.is_featured } : pr));
+  }
+
+  async function saveInfo() {
+    if (!merchant) return;
+    setSavingInfo(true);
+    const { error } = await supabase.from("merchants").update({
+      opening_hours: infoForm.opening_hours,
+      closed_dates: infoForm.closed_dates,
+    }).eq("id", merchant.id);
+    if (error) { alert("Erreur : " + error.message); setSavingInfo(false); return; }
+    setMerchant((m) => m ? { ...m, opening_hours: infoForm.opening_hours, closed_dates: infoForm.closed_dates } : m);
+    setEditingInfo(false);
+    setSavingInfo(false);
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-400">Chargement…</div></div>;
@@ -255,8 +282,19 @@ export default function MerchantDashboard() {
   );
 
   const newOrders = orders.filter((o) => o.status === "pending");
+  const scheduledNewOrders = newOrders.filter((o) => !o.order?.is_asap && o.order?.scheduled_at);
+  const immediateNewOrders = newOrders.filter((o) => o.order?.is_asap !== false || !o.order?.scheduled_at);
   const activeOrders = orders.filter((o) => ["accepted", "preparing", "ready"].includes(o.status));
   const pastOrders = orders.filter((o) => ["rejected", "delivered"].includes(o.status));
+
+  // Feature 2: group products by category
+  const productsByCategory = products.reduce((acc, p) => {
+    const cat = p.category || "Autres";
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(p);
+    return acc;
+  }, {} as Record<string, Product[]>);
+  const categories = Object.keys(productsByCategory).sort();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -303,12 +341,50 @@ export default function MerchantDashboard() {
               </div>
             )}
 
-            {/* Nouvelles commandes */}
-            {newOrders.length > 0 && (
+            {/* Feature 5: Commandes programmées — bannière proéminente */}
+            {scheduledNewOrders.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold text-blue-600 uppercase tracking-wide mb-3">🕐 Commandes programmées</h3>
+                <div className="space-y-3">
+                  {scheduledNewOrders.map((o) => (
+                    <div key={o.id} className="bg-blue-50 rounded-2xl border-2 border-blue-400 p-5 shadow-sm">
+                      <div className="bg-blue-600 text-white rounded-xl px-4 py-3 mb-4 text-center">
+                        <p className="text-xs font-semibold uppercase tracking-wide opacity-80">Livraison prévue le</p>
+                        <p className="text-lg font-bold mt-0.5">
+                          {new Date(o.order.scheduled_at!).toLocaleString("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                      {o.order?.client_name && <p className="text-sm font-bold text-gray-900 mb-1">👤 {o.order.client_name}</p>}
+                      {o.order?.client_phone && (
+                        <a href={`tel:${o.order.client_phone}`} className="text-sm text-blue-700 font-semibold mb-1 block hover:underline">
+                          📞 {o.order.client_phone}
+                        </a>
+                      )}
+                      {o.order?.notes && <p className="text-sm text-gray-700 mb-1">📝 {o.order.notes}</p>}
+                      <p className="text-sm text-gray-500">🏠 {o.order?.dropoff_address}</p>
+                      <p className="text-blue-600 font-bold mt-2">{o.order?.price_total?.toFixed(2)} €</p>
+                      <div className="flex gap-3 mt-4">
+                        <button onClick={() => handleOrderAction(o.id, "rejected")}
+                          className="flex-1 border border-red-200 text-red-500 font-semibold py-2.5 rounded-xl hover:bg-red-50 transition text-sm">
+                          ✕ Refuser
+                        </button>
+                        <button onClick={() => handleOrderAction(o.id, "preparing")}
+                          className="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition text-sm">
+                          ✓ Accepter
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Nouvelles commandes immédiates */}
+            {immediateNewOrders.length > 0 && (
               <div>
                 <h3 className="text-sm font-bold text-orange-500 uppercase tracking-wide mb-3">🔔 Nouvelles commandes</h3>
                 <div className="space-y-3">
-                  {newOrders.map((o) => (
+                  {immediateNewOrders.map((o) => (
                     <div key={o.id} className="bg-white rounded-2xl border-2 border-orange-400 p-5 shadow-sm">
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-xs text-gray-400">{new Date(o.created_at).toLocaleString("fr-FR")}</span>
@@ -354,6 +430,14 @@ export default function MerchantDashboard() {
                         </span>
                         <span className="text-xs text-gray-400">{new Date(o.created_at).toLocaleString("fr-FR")}</span>
                       </div>
+                      {/* Feature 5: badge programmée dans les commandes actives aussi */}
+                      {!o.order?.is_asap && o.order?.scheduled_at && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-2">
+                          <p className="text-blue-700 text-xs font-semibold">
+                            🕐 Programmée — {new Date(o.order.scheduled_at).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      )}
                       {o.order?.client_name && <p className="text-sm font-semibold text-gray-900">👤 {o.order.client_name}</p>}
                       {o.order?.notes && <p className="text-sm text-gray-600 mt-1">📝 {o.order.notes}</p>}
                       <p className="text-sm text-gray-500 mt-1">🏠 {o.order?.dropoff_address}</p>
@@ -398,12 +482,12 @@ export default function MerchantDashboard() {
           </div>
         )}
 
-        {/* MENU */}
+        {/* MENU — Feature 2: organisé par catégorie, Feature 3: mise en avant */}
         {tab === "menu" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">Vos produits ({products.length})</h2>
-              <button onClick={() => { setEditingProduct({ name: "", description: "", price: 0, category: "", available: true }); setPriceInput(""); }}
+              <button onClick={() => { setEditingProduct({ name: "", description: "", price: 0, category: "", available: true, is_featured: false }); setPriceInput(""); }}
                 className="bg-orange-500 text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-orange-600 transition">
                 + Ajouter
               </button>
@@ -414,50 +498,150 @@ export default function MerchantDashboard() {
                 <p>Aucun produit — ajoutez votre menu</p>
               </div>
             )}
-            {products.map((p) => (
-              <div key={p.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
-                {/* Photo miniature */}
-                {p.image_url ? (
-                  <img src={p.image_url} alt={p.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
-                ) : (
-                  <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0">🍽️</div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900">{p.name}</p>
-                    {p.category && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{p.category}</span>}
-                  </div>
-                  {p.description && <p className="text-sm text-gray-500 mt-0.5 truncate">{p.description}</p>}
-                  <p className="text-orange-500 font-bold mt-1">{p.price.toFixed(2)} €</p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => toggleAvailable(p)}
-                    className={`text-xs font-semibold px-2 py-1 rounded-full transition ${p.available ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                    {p.available ? "Dispo" : "Indispo"}
-                  </button>
-                  <button onClick={() => { setEditingProduct(p); setPriceInput(String(p.price ?? "")); }} className="bg-orange-100 text-orange-600 hover:bg-orange-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Modifier</button>
-                  <button onClick={() => deleteProduct(p.id)} className="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Suppr.</button>
+
+            {/* Feature 2: groupement par catégorie */}
+            {categories.map((cat) => (
+              <div key={cat}>
+                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 mt-4">{cat}</h3>
+                <div className="space-y-2">
+                  {productsByCategory[cat].map((p) => (
+                    <div key={p.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0">🍽️</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-gray-900">{p.name}</p>
+                          {/* Feature 3: badge mis en avant */}
+                          {p.is_featured && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded font-semibold">⭐ Mis en avant</span>}
+                        </div>
+                        {p.description && <p className="text-sm text-gray-500 mt-0.5 truncate">{p.description}</p>}
+                        <p className="text-orange-500 font-bold mt-1">{p.price.toFixed(2)} €</p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                        <button onClick={() => toggleAvailable(p)}
+                          className={`text-xs font-semibold px-2 py-1 rounded-full transition ${p.available ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                          {p.available ? "Dispo" : "Indispo"}
+                        </button>
+                        {/* Feature 3: bouton mise en avant */}
+                        <button onClick={() => toggleFeatured(p)}
+                          title={p.is_featured ? "Retirer de la mise en avant" : "Mettre en avant"}
+                          className={`text-xs font-semibold px-2 py-1 rounded-full transition ${p.is_featured ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-400 hover:bg-yellow-50 hover:text-yellow-600"}`}>
+                          ⭐
+                        </button>
+                        <button onClick={() => { setEditingProduct(p); setPriceInput(String(p.price ?? "")); }} className="bg-orange-100 text-orange-600 hover:bg-orange-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Modifier</button>
+                        <button onClick={() => deleteProduct(p.id)} className="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Suppr.</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* INFOS */}
+        {/* INFOS — Feature 4: modification horaires + fermetures */}
         {tab === "info" && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3 text-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Informations du commerce</h2>
-            <InfoRow label="Nom" value={merchant.name} />
-            <InfoRow label="Catégorie" value={merchant.category} />
-            <InfoRow label="Adresse" value={merchant.address} />
-            <InfoRow label="Email" value={merchant.email} />
-            <InfoRow label="Téléphone" value={merchant.phone} />
-            <InfoRow label="SIRET" value={merchant.siret} />
-            <InfoRow label="Horaires" value={merchant.opening_hours} />
-            {merchant.description && <InfoRow label="Description" value={merchant.description} />}
-            <div className="pt-3 border-t border-gray-100">
-              <p className="text-gray-400 text-xs">Pour modifier vos informations, contactez-nous : allo@ilestchouette.fr</p>
-            </div>
+          <div className="space-y-4">
+            {!editingInfo ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3 text-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-gray-900">Informations du commerce</h2>
+                  <button
+                    onClick={() => {
+                      setInfoForm({ opening_hours: merchant.opening_hours || "", closed_dates: merchant.closed_dates || [] });
+                      setEditingInfo(true);
+                    }}
+                    className="bg-orange-100 text-orange-600 hover:bg-orange-200 px-4 py-2 rounded-xl text-sm font-semibold transition">
+                    ✏️ Modifier les horaires
+                  </button>
+                </div>
+                <InfoRow label="Nom" value={merchant.name} />
+                <InfoRow label="Catégorie" value={merchant.category} />
+                <InfoRow label="Adresse" value={merchant.address} />
+                <InfoRow label="Email" value={merchant.email} />
+                <InfoRow label="Téléphone" value={merchant.phone} />
+                <InfoRow label="SIRET" value={merchant.siret} />
+                <InfoRow label="Horaires" value={merchant.opening_hours} />
+                {merchant.description && <InfoRow label="Description" value={merchant.description} />}
+                {/* Fermetures exceptionnelles */}
+                {(merchant.closed_dates ?? []).length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <p className="text-gray-500 text-xs font-semibold uppercase tracking-wide mb-2">Fermetures exceptionnelles</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(merchant.closed_dates ?? []).map((d) => (
+                        <span key={d} className="bg-red-50 text-red-600 text-xs font-semibold px-3 py-1 rounded-full border border-red-100">
+                          🔒 {new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "long" })}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-gray-400 text-xs">Pour modifier le nom, l&apos;adresse ou le SIRET : allo@ilestchouette.fr</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5 text-sm">
+                <h2 className="text-lg font-bold text-gray-900">Modifier les horaires</h2>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Horaires d&apos;ouverture</label>
+                  <textarea
+                    rows={3}
+                    value={infoForm.opening_hours}
+                    onChange={(e) => setInfoForm((f) => ({ ...f, opening_hours: e.target.value }))}
+                    placeholder="Ex: Lun-Ven 9h-19h, Sam 10h-18h, Dim fermé"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+                  />
+                </div>
+
+                {/* Fermetures exceptionnelles */}
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Jours de fermeture exceptionnelle</p>
+                  {infoForm.closed_dates.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {infoForm.closed_dates.map((d) => (
+                        <span key={d} className="flex items-center gap-1.5 bg-red-50 text-red-600 text-xs font-semibold px-3 py-1 rounded-full border border-red-100">
+                          🔒 {new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}
+                          <button
+                            onClick={() => setInfoForm((f) => ({ ...f, closed_dates: f.closed_dates.filter((x) => x !== d) }))}
+                            className="text-red-400 hover:text-red-600 ml-0.5 font-bold">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={newClosedDate}
+                      onChange={(e) => setNewClosedDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!newClosedDate || infoForm.closed_dates.includes(newClosedDate)) return;
+                        setInfoForm((f) => ({ ...f, closed_dates: [...f.closed_dates, newClosedDate].sort() }));
+                        setNewClosedDate("");
+                      }}
+                      className="bg-red-50 text-red-600 font-semibold px-4 py-2.5 rounded-xl hover:bg-red-100 transition text-sm">
+                      + Ajouter
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => setEditingInfo(false)} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Annuler</button>
+                  <button onClick={saveInfo} disabled={savingInfo}
+                    className="flex-1 bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50">
+                    {savingInfo ? "Enregistrement…" : "Enregistrer"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -465,7 +649,7 @@ export default function MerchantDashboard() {
       {/* Modal édition produit */}
       {editingProduct && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-gray-900">{editingProduct.id ? "Modifier le produit" : "Nouveau produit"}</h3>
             <EField label="Nom *" value={editingProduct.name ?? ""} onChange={(v) => setEditingProduct((p) => ({ ...p, name: v }))} />
             <div className="grid grid-cols-2 gap-3">
@@ -497,6 +681,17 @@ export default function MerchantDashboard() {
               </div>
             </div>
             <EField label="Description" value={editingProduct.description ?? ""} onChange={(v) => setEditingProduct((p) => ({ ...p, description: v }))} />
+
+            {/* Feature 3: case mis en avant */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={editingProduct.is_featured ?? false}
+                onChange={(e) => setEditingProduct((p) => ({ ...p, is_featured: e.target.checked }))}
+                className="w-4 h-4 accent-yellow-500"
+              />
+              <span className="text-sm font-semibold text-gray-700">⭐ Mettre ce produit en avant (recommandé par l&apos;assistant)</span>
+            </label>
 
             {/* Photo */}
             <div>
