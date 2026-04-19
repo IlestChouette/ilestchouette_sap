@@ -10,7 +10,7 @@ const supabase = createClient(
 type Merchant = {
   id: string; name: string; address: string; category: string;
   phone: string; email: string; description: string; opening_hours: string;
-  siret: string; status: string; closed_dates?: string[];
+  siret: string; status: string; closed_dates?: string[]; is_open?: boolean;
 };
 type Product = {
   id: string; name: string; description: string; price: number;
@@ -21,7 +21,7 @@ type MerchantOrder = {
   order: {
     dropoff_address: string; notes: string; price_total: number;
     client_email: string; client_name?: string; client_phone?: string;
-    scheduled_at?: string | null;
+    scheduled_at?: string | null; status?: string;
   };
 };
 
@@ -131,11 +131,13 @@ export default function MerchantDashboard() {
     const [{ data: p }, { data: o }] = await Promise.all([
       supabase.from("merchant_products").select("*").eq("merchant_id", m.id).order("category"),
       supabase.from("merchant_orders")
-        .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone,scheduled_at,is_asap)")
+        .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone,scheduled_at,status)")
         .eq("merchant_id", m.id).order("created_at", { ascending: false }).limit(50),
     ]);
     setProducts((p ?? []) as Product[]);
-    setOrders((o ?? []) as MerchantOrder[]);
+    // Filter out merchant_orders whose parent order is cancelled
+    const validOrders = (o ?? []).filter((mo: any) => mo.order?.status !== 'annulee') as MerchantOrder[];
+    setOrders(validOrders);
     setLoading(false);
   }
 
@@ -212,6 +214,13 @@ export default function MerchantDashboard() {
   async function toggleFeatured(p: Product) {
     await supabase.from("merchant_products").update({ is_featured: !p.is_featured }).eq("id", p.id);
     setProducts((prev) => prev.map((pr) => pr.id === p.id ? { ...pr, is_featured: !pr.is_featured } : pr));
+  }
+
+  async function toggleIsOpen() {
+    if (!merchant) return;
+    const newVal = !(merchant.is_open ?? true);
+    await supabase.from("merchants").update({ is_open: newVal }).eq("id", merchant.id);
+    setMerchant((m) => m ? { ...m, is_open: newVal } : m);
   }
 
   async function saveInfo() {
@@ -310,6 +319,15 @@ export default function MerchantDashboard() {
               🔔 {newOrders.length} nouvelle(s)
             </span>
           )}
+          <button
+            onClick={toggleIsOpen}
+            className={`text-sm font-bold px-4 py-1.5 rounded-full border-2 transition ${
+              (merchant.is_open ?? true)
+                ? "bg-green-500 border-green-400 text-white hover:bg-green-600"
+                : "bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600"
+            }`}>
+            {(merchant.is_open ?? true) ? "🟢 Ouvert" : "🔴 Fermé"}
+          </button>
           <button onClick={() => supabase.auth.signOut().then(() => setSession(null))}
             className="text-orange-100 hover:text-white text-sm">Déconnexion</button>
         </div>
