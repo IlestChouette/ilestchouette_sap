@@ -21,7 +21,7 @@ type MerchantOrder = {
   order: {
     dropoff_address: string; notes: string; price_total: number;
     client_email: string; client_name?: string; client_phone?: string;
-    scheduled_at?: string | null; is_asap?: boolean;
+    scheduled_at?: string | null;
   };
 };
 
@@ -95,7 +95,7 @@ export default function MerchantDashboard() {
         async (payload: any) => {
           const { data } = await supabase
             .from("merchant_orders")
-            .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone,scheduled_at,is_asap)")
+            .select("*, order:orders(dropoff_address,notes,price_total,client_email,client_name,client_phone,scheduled_at)")
             .eq("id", payload.new.id)
             .single();
 
@@ -282,8 +282,8 @@ export default function MerchantDashboard() {
   );
 
   const newOrders = orders.filter((o) => o.status === "pending");
-  const scheduledNewOrders = newOrders.filter((o) => !o.order?.is_asap && o.order?.scheduled_at);
-  const immediateNewOrders = newOrders.filter((o) => o.order?.is_asap !== false || !o.order?.scheduled_at);
+  const scheduledNewOrders = newOrders.filter((o) => !!o.order?.scheduled_at);
+  const immediateNewOrders = newOrders.filter((o) => !o.order?.scheduled_at);
   const activeOrders = orders.filter((o) => ["accepted", "preparing", "ready"].includes(o.status));
   const pastOrders = orders.filter((o) => ["rejected", "delivered"].includes(o.status));
 
@@ -431,7 +431,7 @@ export default function MerchantDashboard() {
                         <span className="text-xs text-gray-400">{new Date(o.created_at).toLocaleString("fr-FR")}</span>
                       </div>
                       {/* Feature 5: badge programmée dans les commandes actives aussi */}
-                      {!o.order?.is_asap && o.order?.scheduled_at && (
+                      {!!o.order?.scheduled_at && (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-2">
                           <p className="text-blue-700 text-xs font-semibold">
                             🕐 Programmée — {new Date(o.order.scheduled_at).toLocaleString("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}

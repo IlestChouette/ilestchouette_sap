@@ -345,11 +345,21 @@ export default function CommanderScreen() {
       validation_code: String(Math.floor(100000 + Math.random() * 900000)),
     }));
 
-    const { error } = await supabase.from('orders').insert(rows);
+    const { data: insertedOrders, error } = await supabase.from('orders').insert(rows).select('id');
     if (error) {
       Alert.alert('Erreur', 'Commande non créée, réessayez');
       setPlacing(false);
       return;
+    }
+
+    // Lier les commandes commerçant dans merchant_orders
+    if (insertedOrders) {
+      const merchantLinks = orders
+        .map((o, i) => o.merchant_id ? { merchant_id: o.merchant_id, order_id: insertedOrders[i].id, status: 'pending' } : null)
+        .filter(Boolean);
+      if (merchantLinks.length > 0) {
+        await supabase.from('merchant_orders').insert(merchantLinks);
+      }
     }
 
     // Notify admin for each order
