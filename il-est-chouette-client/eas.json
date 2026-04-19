@@ -15,7 +15,7 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://smvoupxtiilnhecgcxxh.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtdm91cHh0aWlsbmhlY2djeHhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NTk2MjksImV4cCI6MjA3ODMzNTYyOX0.nGKz5rhPoELQNbheTgdfzEmnmRtCq3BBpn-1loQjlP0",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtdm91cHh0aWlsbmhlY2djeHhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2MzE2NDEsImV4cCI6MjA5MTk5MTY0MX0.ivT1b3GAEsCAWUfYQpaBzwlKU6V_jaSLsZbb16Fxc10",
         "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51TD8bIJGZZdBG6j23YZI6djgVOkaphz2Y1Du6EPow4XXkVZa7qAV4aMXx0efYrmWa5OfEImVpuOfaFcZtgMHCA2400TNmDnYDf",
         "EXPO_PUBLIC_WEB_URL": "https://www.ilestchouette.fr"
       }
