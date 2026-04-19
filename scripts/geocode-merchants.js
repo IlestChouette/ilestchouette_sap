@@ -5,8 +5,9 @@
 
 const https = require('https');
 
-const SUPABASE_URL = 'smvoupxtiilnhecgcxxh.supabase.co';
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtdm91cHh0aWlsbmhlY2djeHhoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mjc1OTYyOSwiZXhwIjoyMDc4MzM1NjI5fQ.6GlR7Zzq8EdpNJoIgbf94hvsmM678-IDR_q8q8Ls4PE';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'smvoupxtiilnhecgcxxh.supabase.co';
+const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SERVICE_KEY) { console.error('❌ SUPABASE_SERVICE_ROLE_KEY env var required'); process.exit(1); }
 
 function get(hostname, path, headers = {}) {
   return new Promise((resolve, reject) => {
