@@ -48,16 +48,31 @@ export default function CommercantPage() {
       if (!authData.user) throw new Error("Cet email est déjà utilisé. Connectez-vous directement sur le dashboard.");
       const userId = authData.user.id;
 
-      // 2. Créer le profil commerçant lié au compte
+      // 2. Géocodage automatique de l'adresse (best-effort, non bloquant)
+      let latitude: number | null = null;
+      let longitude: number | null = null;
+      try {
+        const q = encodeURIComponent(address + ", Nice, France");
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, {
+          headers: { "User-Agent": "ilestchouette-app/1.0" },
+        });
+        const geoData = await geoRes.json();
+        if (geoData.length > 0) {
+          latitude = parseFloat(geoData[0].lat);
+          longitude = parseFloat(geoData[0].lon);
+        }
+      } catch (_) { /* géocodage non bloquant */ }
+
+      // 3. Créer le profil commerçant lié au compte
       const { data: merchant, error: mErr } = await supabase
         .from("merchants")
-        .insert([{ name, address, category, phone, email: email.trim().toLowerCase(), description, opening_hours: openingHours, siret: siret || null, status: "pending", accepted_terms_at: new Date().toISOString(), user_id: userId }])
+        .insert([{ name, address, category, phone, email: email.trim().toLowerCase(), description, opening_hours: openingHours, siret: siret || null, status: "pending", accepted_terms_at: new Date().toISOString(), user_id: userId, latitude, longitude }])
         .select("id")
         .single();
 
       if (mErr) throw new Error(mErr.message);
 
-      // 3. Notifier l'admin par email
+      // 4. Notifier l'admin par email
       try {
         await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/notify-new-merchant`, {
           method: "POST",
