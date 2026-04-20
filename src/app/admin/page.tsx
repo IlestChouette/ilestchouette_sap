@@ -169,8 +169,8 @@ function KpiCard({
 /* ─── Section wrapper ────────────────────────────────── */
 function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <div id={id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 scroll-mt-6">
-      <h2 className="text-lg font-semibold text-gray-800 mb-5">{title}</h2>
+    <div id={id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 scroll-mt-6">
+      <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-4 sm:mb-5">{title}</h2>
       {children}
     </div>
   );
@@ -549,40 +549,37 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <header className="bg-white border-b border-gray-200 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between sticky top-0 z-10 shadow-sm gap-2">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🦉</span>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Dashboard Admin</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Dashboard Admin</h1>
             <p className="text-xs text-gray-400">Il est Chouette · Temps réel</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 flex-wrap">
           <a
             href="https://analytics.google.com/analytics/web/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg font-medium transition"
+            className="hidden sm:inline-flex text-xs bg-orange-500 hover:bg-orange-600 text-white px-2.5 py-1.5 rounded-lg font-medium transition"
           >
-            📊 Google Analytics
+            📊 Analytics
           </a>
           <a
             href="https://search.google.com/search-console"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition"
+            className="hidden sm:inline-flex text-xs bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1.5 rounded-lg font-medium transition"
           >
             🔍 Search Console
           </a>
-          <Link
-            href="/operateur"
-            className="text-sm text-blue-600 hover:underline"
-          >
-            Interface opérateur
+          <Link href="/operateur" className="text-xs text-blue-600 hover:underline font-medium">
+            Opérateur
           </Link>
           <button
-            onClick={() => { sessionStorage.removeItem("admin_authed"); setAuthed(false); }}
-            className="text-sm text-gray-500 hover:text-red-500 transition"
+            onClick={handleLogout}
+            className="text-xs text-gray-500 hover:text-red-500 transition px-2 py-1.5 rounded-lg border border-gray-200"
           >
             Déconnexion
           </button>
@@ -594,10 +591,10 @@ export default function AdminPage() {
           Chargement des données…
         </div>
       ) : (
-        <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
 
           {/* ── KPIs ── */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
             <KpiCard
               label="CA Total"
               value={fmtEuro(caTotalAll)}

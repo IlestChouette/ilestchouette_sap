@@ -1083,7 +1083,7 @@ export default function OperatorDashboard() {
   /* =================== RENDER =================== */
   return (
     <>
-      <main className="max-w-3xl mx-auto p-6 font-sans space-y-4 bg-gray-50 min-h-screen">
+      <main className="max-w-3xl mx-auto p-3 sm:p-6 font-sans space-y-4 bg-gray-50 min-h-screen">
         <header className="flex items-center justify-between gap-4 pb-2 border-b">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Espace opérateur</h1>
@@ -1205,7 +1205,7 @@ export default function OperatorDashboard() {
             {/* FICHE CLIENT */}
             <section className="p-4 border rounded-lg bg-white shadow-sm space-y-2">
               <h2 className="font-semibold">Client</h2>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   className="border rounded p-2"
                   placeholder="Prénom"
@@ -1225,7 +1225,7 @@ export default function OperatorDashboard() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
               />
-              <div className="grid grid-cols-[120px_1fr] gap-2">
+              <div className="grid grid-cols-[100px_1fr] sm:grid-cols-[120px_1fr] gap-2">
                 <input
                   className="border rounded p-2"
                   placeholder="Code postal"
@@ -1285,7 +1285,7 @@ export default function OperatorDashboard() {
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-[240px_1fr] gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-[240px_1fr] gap-2">
                       <select
                         className="border rounded p-2"
                         value={l.serviceType}
