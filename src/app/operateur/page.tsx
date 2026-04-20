@@ -27,7 +27,7 @@ const SERVICES: ServiceDef[] = [
   { id: "assist", label: "Accompagnement (20€/h)", base: 20, type: "hour" },
   { id: "bricolage", label: "Bricolage (50€/h)", base: 50, type: "hour" },
   { id: "voiturier", label: "Voiturier (20€/h)", base: 20, type: "hour" },
-  { id: "other", label: "Autre (0€)", base: 0, type: "flat" },
+  { id: "other", label: "Autre — sur devis", base: 0, type: "flat" },
 ];
 
 const getService = (id: string) => SERVICES.find((s) => s.id === id);
@@ -1411,6 +1411,26 @@ export default function OperatorDashboard() {
                         )
                       }
                     />
+                    {l.serviceType === "other" && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600 whitespace-nowrap">Prix devis (€)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          className="border rounded p-2 w-32"
+                          placeholder="0.00"
+                          value={l.price || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setLines((prev) =>
+                              prev.map((x) => x.id === l.id ? { ...x, price: val } : x)
+                            );
+                          }}
+                        />
+                        <span className="text-xs text-gray-400">Prix convenu avec le client</span>
+                      </div>
+                    )}
                     <p className="text-sm text-gray-700">
                       Distance estimée :{" "}
                       {svc?.type === "hour"

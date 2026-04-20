@@ -17,6 +17,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import i18n from '@/lib/i18n';
 import { ORANGE, ORANGE_LIGHT, ORANGE_DARK, GRAY_500, BG } from '@/constants/theme';
+import { ShoppingListPicker, formatShoppingList } from '@/app/ShoppingListPicker';
+import type { ShoppingItem } from '@/app/ShoppingListPicker';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
 
@@ -50,6 +52,7 @@ const SERVICE_LABELS: Record<string, string> = {
   it: '💻 Soutien informatique',
   assist: '🤝 Assistance',
   bricolage: '🔧 Bricolage',
+  other: '📋 Autre — sur devis',
 };
 
 export default function CommanderScreen() {
@@ -65,6 +68,7 @@ export default function CommanderScreen() {
   const [pendingAction, setPendingAction] = useState<OrderAction | null>(null);
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState(false);
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [userPhone, setUserPhone] = useState('');
@@ -84,6 +88,7 @@ export default function CommanderScreen() {
           setMessages([]);
           setPendingAction(null);
           setDone(false);
+          setShoppingList([]);
           initialLoadDoneRef.current = false;
           loadAndStart();
         } else if (!initialLoadDoneRef.current) {
@@ -324,14 +329,20 @@ export default function CommanderScreen() {
   async function placeOrders(stripeIntentId: string | null) {
     setPlacing(true);
     const orders = pendingAction!.orders;
-    const rows = orders.map(o => ({
+    const shoppingListText = formatShoppingList(shoppingList);
+    const rows = orders.map(o => {
+      const baseNotes = o.notes ?? '';
+      const notes = o.service_id === 'supermarket' && shoppingListText
+        ? [shoppingListText, baseNotes].filter(Boolean).join('\n\n')
+        : baseNotes || null;
+      return {
       client_email: userEmail || null,
       client_name: userName || null,
       client_phone: userPhone || null,
       service_type: o.service_id,
       pickup_address: o.pickup_address ?? null,
       dropoff_address: o.dropoff_address,
-      notes: o.notes ?? null,
+      notes,
       price_total: o.price_total,
       // Services purs (sans achats) : price_items toujours 0
       price_items: ['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id)
@@ -343,7 +354,8 @@ export default function CommanderScreen() {
       payment_status: stripeIntentId ? 'paid' : 'pending',
       stripe_payment_intent_id: stripeIntentId,
       validation_code: String(Math.floor(100000 + Math.random() * 900000)),
-    }));
+      };
+    });
 
     const { data: insertedOrders, error } = await supabase.from('orders').insert(rows).select('id');
     if (error) {
@@ -383,6 +395,7 @@ export default function CommanderScreen() {
             setDone(false);
             setMessages([]);
             setPendingAction(null);
+            setShoppingList([]);
             loadAndStart();
           }},
         ]
@@ -391,6 +404,7 @@ export default function CommanderScreen() {
       setDone(false);
       setMessages([]);
       setPendingAction(null);
+      setShoppingList([]);
       loadAndStart();
     }
   }
@@ -518,6 +532,16 @@ export default function CommanderScreen() {
                         ℹ️ Les articles ({pendingAction.orders.reduce((s, o) => s + (o.price_items ?? 0), 0).toFixed(2)} €) sont réglés directement au coursier à la livraison. Seuls les frais de service sont facturés ici.
                       </Text>
                     </View>
+                  )}
+                  {pendingAction.orders.some(o => o.service_id === 'other') && (
+                    <View style={styles.purchaseNote}>
+                      <Text style={styles.purchaseNoteText}>
+                        📋 Service sur devis : un opérateur vous contactera pour confirmer le prix avant d'envoyer un coursier.
+                      </Text>
+                    </View>
+                  )}
+                  {pendingAction.orders.some(o => o.service_id === 'supermarket') && (
+                    <ShoppingListPicker items={shoppingList} onChange={setShoppingList} />
                   )}
                   <Pressable style={styles.confirmBtn} onPress={handleConfirmOrder} disabled={placing}>
                     {placing
