@@ -514,7 +514,29 @@ export default function CommanderScreen() {
                         {(['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id) && (o.price_items ?? 0) > 0) ? (
                           <ConfirmRow label="🛒 Articles (à payer au coursier)" value={`${(o.price_items ?? 0).toFixed(2)} €`} />
                         ) : null}
-                        <ConfirmRow label="⚡ Frais de service" value={`${(['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id) ? (o.price_total - (o.price_items ?? 0)) : o.price_total).toFixed(2)} €`} />
+                        {o.service_id !== 'other' && (
+                          <ConfirmRow label="⚡ Frais de service" value={`${(['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id) ? (o.price_total - (o.price_items ?? 0)) : o.price_total).toFixed(2)} €`} />
+                        )}
+                        {o.service_id === 'other' && (
+                          <View style={styles.devisRow}>
+                            <Text style={styles.confirmRowLabel}>💶 Prix convenu</Text>
+                            <TextInput
+                              style={styles.devisInput}
+                              keyboardType="decimal-pad"
+                              placeholder="0.00"
+                              placeholderTextColor="#9CA3AF"
+                              value={o.price_total > 0 ? String(o.price_total) : ''}
+                              onChangeText={(v) => {
+                                const val = parseFloat(v.replace(',', '.')) || 0;
+                                setPendingAction(prev => prev ? {
+                                  ...prev,
+                                  orders: prev.orders.map((ord, idx) => idx === i ? { ...ord, price_total: val } : ord),
+                                } : prev);
+                              }}
+                            />
+                            <Text style={styles.confirmRowLabel}>€</Text>
+                          </View>
+                        )}
                       </View>
                       <View style={styles.confirmSubtotalRow}>
                         <Text style={styles.confirmRowLabel}>Sous-total</Text>
@@ -536,7 +558,7 @@ export default function CommanderScreen() {
                   {pendingAction.orders.some(o => o.service_id === 'other') && (
                     <View style={styles.purchaseNote}>
                       <Text style={styles.purchaseNoteText}>
-                        📋 Service sur devis : un opérateur vous contactera pour confirmer le prix avant d'envoyer un coursier.
+                        📋 Saisissez le prix convenu avec notre équipe dans le champ ci-dessus, puis confirmez pour procéder au paiement.
                       </Text>
                     </View>
                   )}
@@ -674,6 +696,12 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   cancelBtn: { alignItems: 'center', marginTop: 8, paddingVertical: 6 },
   cancelBtnText: { color: GRAY_500, fontSize: 13 },
+  devisRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  devisInput: {
+    flex: 1, borderWidth: 1, borderColor: ORANGE, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, fontSize: 15,
+    fontWeight: '700', color: '#111827', textAlign: 'right',
+  },
 
   inputRow: {
     flexDirection: 'row', padding: 12, paddingBottom: Platform.OS === 'ios' ? 30 : 16,
