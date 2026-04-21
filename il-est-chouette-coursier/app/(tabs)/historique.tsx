@@ -44,7 +44,7 @@ export default function HistoriqueScreen() {
   const totalGagne = useMemo(() =>
     assignments
       .filter((a) => a.status === 'terminee' && a.order)
-      .reduce((sum, a) => sum + ((a.order!.price_total - (a.order!.price_items ?? 0)) * 0.65), 0),
+      .reduce((sum, a) => sum + ((a.order!.price_total - (a.order!.price_items ?? 0)) * 0.60), 0),
     [assignments]
   );
 
@@ -107,7 +107,7 @@ export default function HistoriqueScreen() {
 
       {/* Total gagné */}
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total gagné (65%)</Text>
+        <Text style={styles.totalLabel}>Total gagné (60%)</Text>
         <Text style={styles.totalValue}>{totalGagne.toFixed(2)} €</Text>
       </View>
 
@@ -152,7 +152,7 @@ export default function HistoriqueScreen() {
                   </Text>
                   {a.status === 'terminee' && (
                     <Text style={styles.earned}>
-                      +{((a.order.price_total - (a.order.price_items ?? 0)) * 0.65).toFixed(2)} €
+                      +{((a.order.price_total - (a.order.price_items ?? 0)) * 0.60).toFixed(2)} €
                     </Text>
                   )}
                 </>

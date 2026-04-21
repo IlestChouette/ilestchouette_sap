@@ -250,8 +250,8 @@ function MissionCard({
           <View style={styles.divider} />
           <View style={styles.priceRow}>
             <View>
-              <Text style={styles.priceLabel}>Votre part (65% frais)</Text>
-              <Text style={styles.priceValue}>{((order.price_total - (order.price_items ?? 0)) * 0.65).toFixed(2)} €</Text>
+              <Text style={styles.priceLabel}>Votre gain (60%)</Text>
+              <Text style={styles.priceValue}>{((order.price_total - (order.price_items ?? 0)) * 0.60).toFixed(2)} €</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.priceLabel}>Frais de service</Text>
@@ -976,7 +976,10 @@ export default function DashboardScreen() {
                 <View key={o.id} style={styles.availableCard}>
                   <View style={styles.availableTop}>
                     <Text style={styles.availableService}>{SERVICE_LABELS[o.service_type] ?? o.service_type}</Text>
-                    <Text style={styles.availablePrice}>{o.price_total?.toFixed(2)} €</Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.availableEarning}>💰 {(o.price_total * 0.60).toFixed(2)} € pour toi</Text>
+                      <Text style={styles.availablePriceSub}>Total client : {o.price_total?.toFixed(2)} €</Text>
+                    </View>
                   </View>
                   <Text style={styles.availableTime}>
                     🕐 {o.scheduled_at
@@ -1184,7 +1187,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#374151' },
   availableCard: { backgroundColor: '#FFF7ED', borderRadius: 14, padding: 14, borderWidth: 2, borderColor: '#F97316', gap: 6, marginBottom: 4 },
   availableTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  availableService: { fontSize: 15, fontWeight: '800', color: '#EA580C' },
+  availableService: { fontSize: 15, fontWeight: '800', color: '#EA580C', flex: 1, marginRight: 8 },
+  availableEarning: { fontSize: 17, fontWeight: '800', color: GREEN },
+  availablePriceSub: { fontSize: 11, color: '#9CA3AF', marginTop: 1 },
   availablePrice: { fontSize: 16, fontWeight: '800', color: '#EA580C' },
   availableTime: { fontSize: 12, color: '#1B5E9B', fontWeight: '600', marginBottom: 2 },
   availableAddr: { fontSize: 13, color: '#374151' },
