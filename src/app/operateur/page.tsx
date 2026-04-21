@@ -20,13 +20,10 @@ const SERVICES: ServiceDef[] = [
   { id: "food", label: "Nourriture (5€)", base: 5, type: "flat" },
   { id: "keys", label: "Clés / objets (6€)", base: 6, type: "flat" },
   { id: "shopping", label: "Achats boutique (8€)", base: 8, type: "flat" },
-  { id: "concierge", label: "Conciergerie (12€)", base: 12, type: "flat" },
-  { id: "express", label: "Express (12€)", base: 12, type: "flat" },
-  { id: "eco", label: "Éco (7€)", base: 7, type: "flat" },
-  { id: "it", label: "Dépannage informatique (50€/h)", base: 50, type: "hour" },
-  { id: "assist", label: "Accompagnement (20€/h)", base: 20, type: "hour" },
-  { id: "bricolage", label: "Bricolage (50€/h)", base: 50, type: "hour" },
-  { id: "voiturier", label: "Voiturier (20€/h)", base: 20, type: "hour" },
+  { id: "it", label: "Dépannage informatique (65€/h)", base: 65, type: "hour" },
+  { id: "assist", label: "Accompagnement (25€/h)", base: 25, type: "hour" },
+  { id: "bricolage", label: "Bricolage (60€/h)", base: 60, type: "hour" },
+  { id: "voiturier", label: "Voiturier (25€/h)", base: 25, type: "hour" },
   { id: "other", label: "Autre — sur devis", base: 0, type: "flat" },
 ];
 

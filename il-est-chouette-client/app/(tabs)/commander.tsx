@@ -47,7 +47,6 @@ const SERVICE_LABELS: Record<string, string> = {
   food: '🍕 Livraison repas',
   keys: '🗝️ Clés / documents',
   shopping: '🛍️ Shopping',
-  express: '⚡ Express',
   voiturier: '🚗 Voiturier',
   it: '💻 Soutien informatique',
   assist: '🤝 Assistance',
