@@ -882,9 +882,13 @@ export default function OperatorDashboard() {
       const svc = getService(l.serviceType);
       if (!svc) continue;
 
-      // pour les services à l’heure, on prend le prix de la ligne (heures)
+      // pour les services à l’heure ou sur devis, on prend le prix de la ligne
       const baseAmount =
-        svc.type === "hour" ? l.price || priceFor(l.serviceType, 0, l.hours) : svc.base;
+        svc.type === "hour"
+          ? l.price || priceFor(l.serviceType, 0, l.hours)
+          : l.serviceType === "other"
+          ? l.price || 0
+          : svc.base;
 
       if (baseAmount > maxBase) {
         maxBase = baseAmount;
