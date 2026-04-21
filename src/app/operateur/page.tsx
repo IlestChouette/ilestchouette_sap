@@ -1019,7 +1019,7 @@ export default function OperatorDashboard() {
       distance_km,
       price_total: finalPrice,
       express,
-      status: selectedCourierId ? "assigned" : "pending",
+      status: selectedCourierId ? "in_progress" : "pending",
       scheduled_at,
       created_at: nowIso,
       pickup_lat: lines[0]?.pickupLat ?? null,
@@ -1053,7 +1053,7 @@ export default function OperatorDashboard() {
           courier_email: selectedCourierId,
           scheduled_at,
           assigned_at: nowIso,
-          status: "assigned",
+          status: "acceptee",
         },
       ]);
       if (assignErr) console.warn("assign error", assignErr);
