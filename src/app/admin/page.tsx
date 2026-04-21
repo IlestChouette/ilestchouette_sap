@@ -749,7 +749,7 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {couriers.map((c) => {
                 const activeMission = assignments.find(
-                  (a) => a.courier_email === c.email && a.status === "acceptee"
+                  (a) => a.courier_email === c.email && ["assigned", "acceptee"].includes(a.status)
                 );
                 const name = `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.email;
                 const isBlocked = !!c.blocked;

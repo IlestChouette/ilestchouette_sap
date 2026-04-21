@@ -1053,10 +1053,14 @@ export default function OperatorDashboard() {
           courier_email: selectedCourierId,
           scheduled_at,
           assigned_at: nowIso,
-          status: "acceptee",
+          status: "assigned",
         },
       ]);
-      if (assignErr) console.warn("assign error", assignErr);
+      if (assignErr) {
+        console.warn("assign error", assignErr);
+        setInfo("⚠️ Commande créée mais assignation coursier échouée : " + assignErr.message);
+        return;
+      }
     }
 
     const { error: eventErr } = await supabase.from("events").insert([
