@@ -64,6 +64,13 @@ export default function MerchantDashboard() {
   // Reset password (logged in)
   const [resetPwStatus, setResetPwStatus] = useState<"idle" | "sent" | "error">("idle");
 
+  // New password form (arrived from reset email link)
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [savingNewPw, setSavingNewPw] = useState(false);
+  const [newPwError, setNewPwError] = useState("");
+
   // Edit product
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [priceInput, setPriceInput] = useState("");
@@ -77,10 +84,25 @@ export default function MerchantDashboard() {
   const [newClosedDate, setNewClosedDate] = useState("");
 
   useEffect(() => {
+    // Detect password recovery flow from reset email link (hash contains type=recovery)
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setSession(session);
+        setLoading(false);
+      } else if (event === "SIGNED_IN" && session) {
+        setSession(session);
+        loadMerchantData(session.user.id);
+      }
+    });
+
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) loadMerchantData(data.session.user.id);
-      else setLoading(false);
+      if (data.session) {
+        setSession(data.session);
+        loadMerchantData(data.session.user.id);
+      } else {
+        setLoading(false);
+      }
     });
   }, []);
 
@@ -145,6 +167,23 @@ export default function MerchantDashboard() {
     const validOrders = (o ?? []).filter((mo: any) => mo.order?.status !== 'annulee') as MerchantOrder[];
     setOrders(validOrders);
     setLoading(false);
+  }
+
+  async function handleSetNewPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setNewPwError("");
+    if (newPassword.length < 8) { setNewPwError("Le mot de passe doit contenir au moins 8 caractères."); return; }
+    if (newPassword !== newPasswordConfirm) { setNewPwError("Les mots de passe ne correspondent pas."); return; }
+    setSavingNewPw(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSavingNewPw(false);
+    if (error) { setNewPwError("Erreur : " + error.message); return; }
+    setRecoveryMode(false);
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    // Reload merchant data now that session is valid
+    const { data } = await supabase.auth.getSession();
+    if (data.session) loadMerchantData(data.session.user.id);
   }
 
   async function handleForgotPassword(e: React.FormEvent) {
@@ -262,6 +301,38 @@ export default function MerchantDashboard() {
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-400">Chargement…</div></div>;
+
+  if (recoveryMode) {
+    return (
+      <div className="min-h-screen bg-orange-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md">
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-2">🔐</div>
+            <h1 className="text-2xl font-bold text-gray-900">Nouveau mot de passe</h1>
+            <p className="text-gray-500 text-sm mt-1">Choisissez un nouveau mot de passe pour votre compte</p>
+          </div>
+          <form onSubmit={handleSetNewPassword} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Nouveau mot de passe</label>
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8}
+                placeholder="Minimum 8 caractères"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Confirmer le mot de passe</label>
+              <input type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} required
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+            {newPwError && <p className="text-red-500 text-sm">{newPwError}</p>}
+            <button type="submit" disabled={savingNewPw}
+              className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50 transition">
+              {savingNewPw ? "Enregistrement…" : "Enregistrer le nouveau mot de passe"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return (
