@@ -57,6 +57,12 @@ export default function MerchantDashboard() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotStatus, setForgotStatus] = useState<"idle" | "sent" | "error">("idle");
+
+  // Reset password (logged in)
+  const [resetPwStatus, setResetPwStatus] = useState<"idle" | "sent" | "error">("idle");
 
   // Edit product
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
@@ -139,6 +145,25 @@ export default function MerchantDashboard() {
     const validOrders = (o ?? []).filter((mo: any) => mo.order?.status !== 'annulee') as MerchantOrder[];
     setOrders(validOrders);
     setLoading(false);
+  }
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setForgotStatus("idle");
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/commercant/dashboard`,
+    });
+    setForgotStatus(error ? "error" : "sent");
+  }
+
+  async function handleSendResetEmail() {
+    setResetPwStatus("idle");
+    const email = session?.user?.email;
+    if (!email) return;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/commercant/dashboard`,
+    });
+    setResetPwStatus(error ? "error" : "sent");
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -245,28 +270,64 @@ export default function MerchantDashboard() {
           <div className="text-center mb-6">
             <div className="text-4xl mb-2">🏪</div>
             <h1 className="text-2xl font-bold text-gray-900">Espace commerçant</h1>
-            <p className="text-gray-500 text-sm mt-1">Connectez-vous pour gérer vos commandes</p>
+            <p className="text-gray-500 text-sm mt-1">
+              {forgotMode ? "Réinitialisation du mot de passe" : "Connectez-vous pour gérer vos commandes"}
+            </p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-              <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+
+          {forgotMode ? (
+            <div className="space-y-4">
+              {forgotStatus === "sent" ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                  <p className="text-green-700 font-semibold text-sm">Email envoyé !</p>
+                  <p className="text-green-600 text-sm mt-1">Vérifiez votre boîte mail pour réinitialiser votre mot de passe.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Votre email</label>
+                    <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                  </div>
+                  {forgotStatus === "error" && <p className="text-red-500 text-sm">Erreur — vérifiez l&apos;adresse email.</p>}
+                  <button type="submit" className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 transition">
+                    Envoyer le lien de réinitialisation
+                  </button>
+                </form>
+              )}
+              <button onClick={() => { setForgotMode(false); setForgotStatus("idle"); }}
+                className="w-full text-center text-sm text-gray-400 hover:text-gray-600 mt-2">
+                ← Retour à la connexion
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Mot de passe</label>
-              <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
-            <button type="submit" disabled={loggingIn}
-              className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50 transition">
-              {loggingIn ? "Connexion…" : "Se connecter"}
-            </button>
-          </form>
-          <p className="text-center text-sm text-gray-400 mt-4">
-            Pas encore inscrit ? <a href="/commercant" className="text-orange-500 font-semibold hover:underline">Rejoindre Il est chouette</a>
-          </p>
+          ) : (
+            <>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                  <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Mot de passe</label>
+                  <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400" />
+                </div>
+                {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
+                <button type="submit" disabled={loggingIn}
+                  className="w-full bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50 transition">
+                  {loggingIn ? "Connexion…" : "Se connecter"}
+                </button>
+              </form>
+              <button onClick={() => { setForgotMode(true); setForgotEmail(loginEmail); }}
+                className="w-full text-center text-sm text-orange-400 hover:text-orange-600 mt-3">
+                Mot de passe oublié ?
+              </button>
+              <p className="text-center text-sm text-gray-400 mt-3">
+                Pas encore inscrit ? <a href="/commercant" className="text-orange-500 font-semibold hover:underline">Rejoindre Il est chouette</a>
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -597,8 +658,20 @@ export default function MerchantDashboard() {
                     </div>
                   </div>
                 )}
-                <div className="pt-3 border-t border-gray-100">
+                <div className="pt-3 border-t border-gray-100 space-y-3">
                   <p className="text-gray-400 text-xs">Pour modifier le nom, l&apos;adresse ou le SIRET : allo@ilestchouette.fr</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-600">Mot de passe</p>
+                    <button
+                      onClick={handleSendResetEmail}
+                      disabled={resetPwStatus === "sent"}
+                      className="text-sm text-orange-500 font-semibold hover:text-orange-600 disabled:opacity-50 transition">
+                      {resetPwStatus === "sent" ? "Email envoyé ✓" : resetPwStatus === "error" ? "Erreur — réessayer" : "Réinitialiser"}
+                    </button>
+                  </div>
+                  {resetPwStatus === "sent" && (
+                    <p className="text-xs text-green-600">Un lien de réinitialisation a été envoyé à {session?.user?.email}</p>
+                  )}
                 </div>
               </div>
             ) : (

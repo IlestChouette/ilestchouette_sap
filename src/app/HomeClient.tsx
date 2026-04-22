@@ -67,19 +67,17 @@ const PRICING = [
   { label: "Nourriture & repas", price: "5 € + 1 €/km" },
   { label: "Clés / objets & petits colis", price: "6 € + 1 €/km" },
   { label: "Achats boutiques & petits commerces", price: "8 € + 1 €/km" },
-  { label: "Course éco", price: "7 € + 1 €/km" },
-  { label: "Course express (prioritaire)", price: "12 € + 1 €/km" },
-  { label: "Accompagnement (rendez-vous, aide, démarches…)", price: "20 € / heure (sans km)" },
-  { label: "Voiturier (hôtel, résidence, événements…)", price: "20 € / heure (sans km)" },
-  { label: "Dépannage informatique à domicile", price: "50 € / heure (sans km)" },
-  { label: "Bricolage & petits travaux", price: "50 € / heure (sans km)" },
+  { label: "Accompagnement (rendez-vous, aide, démarches…)", price: "25 € / heure" },
+  { label: "Voiturier (hôtel, résidence, événements…)", price: "25 € / heure" },
+  { label: "Dépannage informatique à domicile", price: "65 € / heure" },
+  { label: "Bricolage & petits travaux", price: "60 € / heure" },
   { label: "Mission spéciale / autre besoin", price: "Sur devis" },
 ];
 
 const FAQ = [
   {
     q: "Proposez-vous des services de bricolage à Nice ?",
-    a: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules, fixation de tableaux... Tarif : 50 € / heure. Contactez-nous au 06 95 42 73 12.",
+    a: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules, fixation de tableaux... Tarif : 60 € / heure. Contactez-nous au 06 95 42 73 12.",
   },
   {
     q: "Comment commander une livraison de courses à domicile à Nice ?",
@@ -95,7 +93,7 @@ const FAQ = [
   },
   {
     q: "Proposez-vous un service de voiturier à Nice ?",
-    a: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Nos coursiers sont professionnels et discrets. Tarif : 20 € / heure.",
+    a: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Nos coursiers sont professionnels et discrets. Tarif : 25 € / heure.",
   },
   {
     q: "Livrez-vous dans toute la ville de Nice ?",
@@ -342,7 +340,7 @@ export default function HomeClient() {
           <p className="text-[11px] text-slate-500 text-center mt-3">
             Exemple 1 : course supermarché à 8 € + 3 km = 11 € au total.{" "}
             <br />
-            Exemple 2 : dépannage informatique à domicile = 50 € pour 1 heure.
+            Exemple 2 : dépannage informatique à domicile = 65 € pour 1 heure.
           </p>
         </div>
       </section>

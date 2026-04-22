@@ -90,7 +90,7 @@ const faqJsonLd = {
     {
       "@type": "Question",
       name: "Proposez-vous des services de bricolage à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules... Tarif : 50 € / heure. Contactez-nous au 06 95 42 73 12." },
+      acceptedAnswer: { "@type": "Answer", text: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules... Tarif : 60 € / heure. Contactez-nous au 06 95 42 73 12." },
     },
     {
       "@type": "Question",
@@ -110,7 +110,7 @@ const faqJsonLd = {
     {
       "@type": "Question",
       name: "Proposez-vous un service de voiturier à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Tarif : 20 € / heure." },
+      acceptedAnswer: { "@type": "Answer", text: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Tarif : 25 € / heure." },
     },
     {
       "@type": "Question",
