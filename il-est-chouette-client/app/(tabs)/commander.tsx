@@ -292,8 +292,9 @@ export default function CommanderScreen() {
       const totalCents = Math.round(
         pendingAction!.orders.reduce((sum, o) => sum + o.price_total, 0) * 100
       );
+      const isSupermarket = pendingAction!.orders.some(o => o.service_id === 'supermarket');
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-        body: { amount: totalCents, currency: 'eur' },
+        body: { amount: totalCents, currency: 'eur', capture_method: isSupermarket ? 'manual' : undefined },
       });
       if (error || !data?.clientSecret) {
         Alert.alert('Erreur', 'Paiement impossible, réessayez');
@@ -350,7 +351,9 @@ export default function CommanderScreen() {
       status: 'pending',
       scheduled_at: o.scheduled_at ?? null,
       payment_method: o.payment_method,
-      payment_status: stripeIntentId ? 'paid' : 'pending',
+      payment_status: stripeIntentId
+        ? (['supermarket'].includes(o.service_id) ? 'preauth' : 'paid')
+        : 'pending',
       stripe_payment_intent_id: stripeIntentId,
       validation_code: String(Math.floor(100000 + Math.random() * 900000)),
       };

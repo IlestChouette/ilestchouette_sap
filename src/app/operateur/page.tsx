@@ -168,6 +168,8 @@ type ServiceLine = {
   distanceKm: number;
   price: number;
   hours: number;
+  expenseAdvance: number;
+  expenseLabel: string;
 };
 
 const newLine = (): ServiceLine => ({
@@ -181,6 +183,8 @@ const newLine = (): ServiceLine => ({
   distanceKm: 0,
   price: 0,
   hours: 1,
+  expenseAdvance: 0,
+  expenseLabel: "",
 });
 
 /* ============= Helpers format date/heure ============= */
@@ -907,8 +911,9 @@ export default function OperatorDashboard() {
     }
 
     const expressExtra = express ? 12 : 0;
+    const totalExpenses = lines.reduce((acc, l) => acc + (l.expenseAdvance || 0), 0);
 
-    const total = maxBase + distancePrice + expressExtra;
+    const total = maxBase + distancePrice + expressExtra + totalExpenses;
     return Math.round(total * 100) / 100;
   })();
 
@@ -1000,9 +1005,16 @@ export default function OperatorDashboard() {
       })
       .join(" | ");
 
-    const notesCombined = [express ? expressNote : "", notesPerLine]
+    const expensesNote = lines
+      .filter((l) => l.expenseAdvance > 0)
+      .map((l) => `Avance de frais: ${l.expenseAdvance.toFixed(2)}€${l.expenseLabel ? ` (${l.expenseLabel})` : ""}`)
+      .join(" | ");
+
+    const notesCombined = [express ? expressNote : "", notesPerLine, expensesNote]
       .filter(Boolean)
       .join(" | ");
+
+    const totalExpenseAdvance = lines.reduce((acc, l) => acc + (l.expenseAdvance || 0), 0);
 
     const payload: any = {
       customer_id: customer.id,
@@ -1015,6 +1027,7 @@ export default function OperatorDashboard() {
       notes: notesCombined || null,
       distance_km,
       price_total: finalPrice,
+      price_items: totalExpenseAdvance > 0 ? totalExpenseAdvance : null,
       express,
       status: selectedCourierId ? "in_progress" : "pending",
       scheduled_at,
@@ -1437,6 +1450,38 @@ export default function OperatorDashboard() {
                         <span className="text-xs text-gray-400">Prix convenu avec le client</span>
                       </div>
                     )}
+                    {/* Avance de frais */}
+                    <div className="border-t pt-2 mt-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="text-sm text-gray-600 whitespace-nowrap">💸 Avance de frais (€)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          className="border rounded p-2 w-28"
+                          placeholder="0.00"
+                          value={l.expenseAdvance || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setLines((prev) => prev.map((x) => x.id === l.id ? { ...x, expenseAdvance: val } : x));
+                          }}
+                        />
+                        <input
+                          className="border rounded p-2 flex-1 min-w-40"
+                          placeholder="Description (ex: Uber aller-retour)"
+                          value={l.expenseLabel}
+                          onChange={(e) =>
+                            setLines((prev) => prev.map((x) => x.id === l.id ? { ...x, expenseLabel: e.target.value } : x))
+                          }
+                        />
+                      </div>
+                      {l.expenseAdvance > 0 && (
+                        <p className="text-xs text-amber-700 mt-1">
+                          ℹ️ Le coursier avance {l.expenseAdvance.toFixed(2)} € — remboursé via la commande (inclus dans le total client).
+                        </p>
+                      )}
+                    </div>
+
                     <p className="text-sm text-gray-700">
                       Distance estimée :{" "}
                       {svc?.type === "hour"
@@ -1512,11 +1557,33 @@ export default function OperatorDashboard() {
                 </span>
               </div>
 
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-                <span className="font-semibold text-blue-900">Total à facturer</span>
-                <span className="text-xl font-bold text-blue-900">
-                  {totalToBill ? `${totalToBill.toFixed(2)} €` : "—"}
-                </span>
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
+                {(() => {
+                  const totalExpenses = lines.reduce((acc, l) => acc + (l.expenseAdvance || 0), 0);
+                  const serviceFee = totalToBill - totalExpenses;
+                  return (
+                    <>
+                      {totalExpenses > 0 && (
+                        <div className="flex justify-between text-sm text-blue-700">
+                          <span>Frais de service</span>
+                          <span>{serviceFee.toFixed(2)} €</span>
+                        </div>
+                      )}
+                      {lines.filter(l => l.expenseAdvance > 0).map((l, i) => (
+                        <div key={i} className="flex justify-between text-sm text-amber-700">
+                          <span>💸 {l.expenseLabel || "Avance de frais"}</span>
+                          <span>{l.expenseAdvance.toFixed(2)} €</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between border-t border-blue-200 pt-1 mt-1">
+                        <span className="font-semibold text-blue-900">Total à facturer</span>
+                        <span className="text-xl font-bold text-blue-900">
+                          {totalToBill ? `${totalToBill.toFixed(2)} €` : "—"}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
             </section>

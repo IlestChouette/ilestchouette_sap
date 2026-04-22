@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { amount, currency = 'eur' } = await req.json();
+    const { amount, currency = 'eur', capture_method } = await req.json();
 
     const amountInt = Math.round(Number(amount));
 
@@ -19,9 +19,9 @@ Deno.serve(async (req) => {
       typeof amount !== 'number' ||
       isNaN(amountInt) ||
       amountInt < 50 ||       // minimum 0.50 €
-      amountInt > 50000        // maximum 500.00 €
+      amountInt > 100000       // maximum 1000.00 €
     ) {
-      return new Response(JSON.stringify({ error: 'Montant invalide (entre 0.50 € et 500.00 €)' }), {
+      return new Response(JSON.stringify({ error: 'Montant invalide (entre 0.50 € et 1000.00 €)' }), {
         status: 400,
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       });
@@ -33,6 +33,11 @@ Deno.serve(async (req) => {
       currency,
       'automatic_payment_methods[enabled]': 'true',
     });
+
+    // Pré-autorisation (capture manuelle) pour les commandes supermarché
+    if (capture_method === 'manual') {
+      body.append('capture_method', 'manual');
+    }
 
     const stripeRes = await fetch('https://api.stripe.com/v1/payment_intents', {
       method: 'POST',
