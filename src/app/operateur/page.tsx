@@ -1044,18 +1044,19 @@ export default function OperatorDashboard() {
     }
 
     if (selectedCourierId && insertedOrder) {
-      const { error: assignErr } = await supabase.from("assignments").insert([
-        {
+      const res = await fetch("/api/operateur/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           order_id: insertedOrder.id,
           courier_email: selectedCourierId,
           scheduled_at,
           assigned_at: nowIso,
-          status: "assigned",
-        },
-      ]);
-      if (assignErr) {
-        console.warn("assign error", assignErr);
-        setInfo("⚠️ Commande créée mais assignation coursier échouée : " + assignErr.message);
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setInfo("⚠️ Commande créée mais assignation échouée : " + json.error);
         return;
       }
     }
