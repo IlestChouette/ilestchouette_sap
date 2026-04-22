@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const pickup = order?.pickup_address ?? 'Adresse inconnue';
-    const price = order ? `${(order.price_total * 0.65).toFixed(2)} €` : '';
+    const price = order ? `${(order.price_total * 0.60).toFixed(2)} €` : '';
     const express = order?.express ? ' 🚨 EXPRESS' : '';
 
     // Envoyer la notification via l'API Expo Push

@@ -311,7 +311,7 @@ export default function CourierPage() {
     .filter(
       (a) => a.order && (a.status === "acceptee" || a.status === "terminee"),
     )
-    .reduce((sum, a) => sum + a.order!.price_total * 0.65, 0);
+    .reduce((sum, a) => sum + a.order!.price_total * 0.60, 0);
 
   /* ---- gains par mois (AAAA-MM) + heures de trajet ---- */
   const gainsParMois = (() => {
@@ -326,7 +326,7 @@ export default function CourierPage() {
         2,
         "0",
       )}`;
-      const montant = a.order.price_total * 0.65;
+      const montant = a.order.price_total * 0.60;
       const mins = durations[a.id] ?? 0;
 
       const current = map.get(key) || { montant: 0, minutes: 0 };
@@ -1149,7 +1149,7 @@ export default function CourierPage() {
                           <b>Prix client :</b>{" "}
                           {a.order.price_total.toFixed(2)} € •{" "}
                           <b>Pour toi :</b>{" "}
-                          {(a.order.price_total * 0.65).toFixed(2)} €
+                          {(a.order.price_total * 0.60).toFixed(2)} €
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
                           Temps estimé : {formatMinutesToText(durations[a.id])}

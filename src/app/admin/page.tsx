@@ -842,7 +842,7 @@ export default function AdminPage() {
                       <td className="py-3 pr-4 text-right text-gray-700">{c.monthMissions}</td>
                       <td className="py-3 pr-4 text-right text-gray-700">{fmtEuro(c.monthCA)}</td>
                       <td className="py-3 pr-4 text-right font-bold text-emerald-600">
-                        {fmtEuro(c.monthCA * 0.65)}
+                        {fmtEuro(c.monthCA * 0.60)}
                       </td>
                       <td className="py-3 pr-4 text-right text-gray-500">{c.totalMissions}</td>
                       <td className="py-3 text-right text-gray-500">{fmtEuro(c.totalCA)}</td>
@@ -865,7 +865,7 @@ export default function AdminPage() {
                         {fmtEuro(courierStats.reduce((s, c) => s + c.monthCA, 0))}
                       </td>
                       <td className="py-3 pr-4 text-right text-emerald-700">
-                        {fmtEuro(courierStats.reduce((s, c) => s + c.monthCA * 0.65, 0))}
+                        {fmtEuro(courierStats.reduce((s, c) => s + c.monthCA * 0.60, 0))}
                       </td>
                       <td className="py-3 pr-4 text-right text-blue-900">
                         {courierStats.reduce((s, c) => s + c.totalMissions, 0)}
