@@ -158,10 +158,9 @@ export default function ProfilScreen() {
       if (event.type === 'dismissed') { setPickerStep(null); return; }
 
       if (pickerStep === 'start-date') {
-        // Enchainer sur l'heure
         const d = selected;
         setTempDate(d);
-        setTimeout(() => openPicker('start-time', d), 50);
+        setTimeout(() => openPicker('start-time', d), 500);
       } else if (pickerStep === 'start-time') {
         const merged = mergeDateAndTime(tempDate, selected);
         setStartDate(merged);
@@ -169,7 +168,7 @@ export default function ProfilScreen() {
       } else if (pickerStep === 'end-date') {
         const d = selected;
         setTempDate(d);
-        setTimeout(() => openPicker('end-time', d), 50);
+        setTimeout(() => openPicker('end-time', d), 500);
       } else if (pickerStep === 'end-time') {
         const merged = mergeDateAndTime(tempDate, selected);
         setEndDate(merged);
