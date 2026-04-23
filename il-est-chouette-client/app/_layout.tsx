@@ -75,15 +75,17 @@ export default function RootLayout() {
 
   return (
     <StripeProvider publishableKey={STRIPE_PK} merchantIdentifier="merchant.fr.ilestchouette">
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-        <Stack.Screen name="(tabs)" />
-      </Stack>
-      {!onboardingDone && <Redirect href="/onboarding" />}
-      {onboardingDone && !session && pathname !== '/register' && <Redirect href="/login" />}
-      <StatusBar style="dark" />
+      <>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+        {!onboardingDone ? <Redirect href="/onboarding" /> : null}
+        {onboardingDone && !session && pathname !== '/register' ? <Redirect href="/login" /> : null}
+        <StatusBar style="dark" />
+      </>
     </StripeProvider>
   );
 }
