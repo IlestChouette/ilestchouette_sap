@@ -1,5 +1,6 @@
 export const metadata = {
   title: "Supprimer mon compte — Il est Chouette",
+  robots: { index: false, follow: false },
 };
 
 export default function DeleteAccountPage() {

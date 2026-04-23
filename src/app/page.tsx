@@ -52,15 +52,9 @@ const jsonLd = {
   telephone: "+33 6 95 42 73 12",
   address: {
     "@type": "PostalAddress",
-    streetAddress: "143 Promenade des Anglais",
     addressLocality: "Nice",
     postalCode: "06200",
     addressCountry: "FR",
-  },
-  geo: {
-    "@type": "GeoCoordinates",
-    latitude: 43.695,
-    longitude: 7.255,
   },
   areaServed: [{ "@type": "City", name: "Nice" }],
   description:

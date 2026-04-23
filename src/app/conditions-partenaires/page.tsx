@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Conditions Partenaire — Il est Chouette",
   description: "Conditions générales pour les commerçants partenaires Il est Chouette à Nice.",
+  robots: { index: false, follow: false },
 };
 
 export default function ConditionsPartenaires() {

@@ -27,6 +27,8 @@ export type Order = {
   client_name?: string | null;
   client_phone?: string | null;
   payment_method?: string | null;
+  payment_status?: string | null;
+  stripe_payment_intent_id?: string | null;
 };
 
 export type Assignment = {

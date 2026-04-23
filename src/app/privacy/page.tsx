@@ -1,6 +1,7 @@
 export const metadata = {
   title: "Politique de confidentialité — Il est Chouette",
   description: "Politique de confidentialité des applications Il est Chouette",
+  robots: { index: false, follow: false },
 };
 
 export default function PrivacyPage() {

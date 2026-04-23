@@ -5,10 +5,22 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/coursier", "/commercant", "/mentions-legales"],
-        disallow: ["/admin", "/operateur", "/commercant/dashboard", "/api/"],
+        allow: ["/", "/commercant"],
+        disallow: [
+          "/admin",
+          "/operateur",
+          "/commercant/dashboard",
+          "/coursier",
+          "/presentation",
+          "/mentions-legales",
+          "/politique-de-confidentialite",
+          "/privacy",
+          "/conditions-partenaires",
+          "/delete-account",
+          "/api/",
+        ],
       },
     ],
-    sitemap: "https://ilestchouette.fr/sitemap.xml",
+    sitemap: "https://www.ilestchouette.fr/sitemap.xml",
   };
 }

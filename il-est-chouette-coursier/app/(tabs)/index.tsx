@@ -356,22 +356,30 @@ function MissionCard({
 /* ---- Modale de clôture ---- */
 const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL ?? 'https://ilestchouette-sap.vercel.app';
 
-type FinishStep = 'form' | 'signature';
+type FinishStep = 'amount' | 'form' | 'signature';
 
 function FinishModal({
   assignmentId,
   orderId,
   validationCode,
+  order,
   onClose,
   onDone,
 }: {
   assignmentId: string;
   orderId: string;
   validationCode?: string | null;
+  order?: import('@/lib/types').Order;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [step, setStep] = useState<FinishStep>('form');
+  const isPreauth = order?.service_type === 'supermarket'
+    && order?.payment_method === 'online_card'
+    && order?.payment_status === 'preauth';
+  const serviceFee = (order?.price_total ?? 0) - (order?.price_items ?? 0);
+
+  const [step, setStep] = useState<FinishStep>(isPreauth ? 'amount' : 'form');
+  const [realAmount, setRealAmount] = useState('');
   const [code, setCode] = useState('');
   const [payment, setPayment] = useState<'cash' | 'card' | 'to_pay' | 'online' | ''>('');
   const [wantsInvoice, setWantsInvoice] = useState<'yes' | 'no' | ''>('');
@@ -476,6 +484,76 @@ function FinishModal({
     { key: 'card', label: '💳 Carte CB' },
     { key: 'to_pay', label: '🔄 À facturer' },
   ];
+
+  /* ── Étape 0 : Montant réel (supermarché pré-autorisé) ── */
+  if (step === 'amount') {
+    const realVal = parseFloat(realAmount.replace(',', '.')) || 0;
+    const captureCents = Math.round((serviceFee + realVal) * 100);
+
+    async function handleCaptureAndContinue() {
+      if (realVal <= 0) { setError('Saisis le montant réel des courses.'); return; }
+      if (!order?.stripe_payment_intent_id) { setError('Identifiant de paiement manquant.'); return; }
+      setLoading(true);
+      setError('');
+      try {
+        const { error: capErr } = await supabase.functions.invoke('capture-payment', {
+          body: {
+            payment_intent_id: order.stripe_payment_intent_id,
+            amount_cents: captureCents,
+            order_id: orderId,
+            price_items_actual: realVal,
+          },
+        });
+        if (capErr) { setError('Erreur capture paiement. Réessaie.'); setLoading(false); return; }
+        setStep('form');
+      } catch {
+        setError('Erreur réseau. Réessaie.');
+      }
+      setLoading(false);
+    }
+
+    return (
+      <View style={styles.overlay}>
+        <View style={styles.modal}>
+          <Text style={styles.modalTitle}>💳 Montant des courses</Text>
+          <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+            Le client a été pré-autorisé pour {(order?.price_items ?? 0).toFixed(2)} € d'articles.{'\n'}
+            Saisis le montant réel payé en caisse pour capturer le paiement exact.
+          </Text>
+          <Text style={styles.label}>Montant réel des articles (€)</Text>
+          <TextInput
+            style={[styles.input, { fontSize: 22, fontWeight: '700', textAlign: 'center' }]}
+            value={realAmount}
+            onChangeText={setRealAmount}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            placeholderTextColor="#9CA3AF"
+            autoFocus
+          />
+          {realVal > 0 && (
+            <View style={{ backgroundColor: '#F0FDF4', borderRadius: 10, padding: 12, marginTop: 8 }}>
+              <Text style={{ fontSize: 12, color: '#166534' }}>
+                Articles : {realVal.toFixed(2)} €{'\n'}
+                Frais de service : {serviceFee.toFixed(2)} €{'\n'}
+                <Text style={{ fontWeight: '700' }}>Total capturé : {(captureCents / 100).toFixed(2)} €</Text>
+              </Text>
+            </View>
+          )}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <View style={styles.actions}>
+            <Pressable style={[styles.actionBtn, styles.refuseBtn]} onPress={onClose}>
+              <Text style={styles.refuseBtnText}>Annuler</Text>
+            </Pressable>
+            <Pressable style={[styles.actionBtn, styles.acceptBtn]} onPress={handleCaptureAndContinue} disabled={loading}>
+              {loading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.acceptBtnText}>Capturer →</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   /* ── Étape 1 : Formulaire ── */
   if (step === 'form') {
@@ -764,7 +842,7 @@ export default function DashboardScreen() {
     const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
       supabase
         .from('assignments')
-        .select('id,order_id,courier_email,assigned_at,status,payment_method,validated_with_code, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,price_items,express,created_at,scheduled_at,validation_code,status,wants_invoice,client_email,client_name,client_phone,payment_method)')
+        .select('id,order_id,courier_email,assigned_at,status,payment_method,validated_with_code, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,price_items,express,created_at,scheduled_at,validation_code,status,wants_invoice,client_email,client_name,client_phone,payment_method,payment_status,stripe_payment_intent_id)')
         .eq('courier_email', userEmail)
         .in('status', ['assigned', 'acceptee'])
         .order('assigned_at', { ascending: false }),
@@ -1035,6 +1113,7 @@ export default function DashboardScreen() {
           assignmentId={finishingId}
           orderId={finishingAssignment.order_id}
           validationCode={finishingAssignment.order?.validation_code}
+          order={finishingAssignment.order}
           onClose={() => setFinishingId(null)}
           onDone={() => { setFinishingId(null); loadData(); }}
         />
