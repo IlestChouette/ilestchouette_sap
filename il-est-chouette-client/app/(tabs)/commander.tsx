@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import i18n from '@/lib/i18n';
 import { ORANGE, ORANGE_LIGHT, ORANGE_DARK, GRAY_500, BG } from '@/constants/theme';
-import { ShoppingListPicker, formatShoppingList } from '@/app/ShoppingListPicker';
+import { ShoppingListPicker, formatShoppingList, calcShoppingTotal } from '@/app/ShoppingListPicker';
 import type { ShoppingItem } from '@/app/ShoppingListPicker';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
@@ -289,10 +289,20 @@ export default function CommanderScreen() {
   async function handleStripePayment() {
     setPlacing(true);
     try {
-      const totalCents = Math.round(
-        pendingAction!.orders.reduce((sum, o) => sum + o.price_total, 0) * 100
-      );
       const isSupermarket = pendingAction!.orders.some(o => o.service_id === 'supermarket');
+      // For supermarket with a priced list: pre-auth = items total + service fee + 30% buffer
+      let totalCents: number;
+      if (isSupermarket && shoppingList.length > 0 && calcShoppingTotal(shoppingList) > 0) {
+        const itemsTotal = calcShoppingTotal(shoppingList);
+        const serviceFee = pendingAction!.orders
+          .filter(o => o.service_id === 'supermarket')
+          .reduce((s, o) => s + o.price_total - (o.price_items ?? 0), 0);
+        totalCents = Math.round((itemsTotal * 1.3 + serviceFee) * 100);
+      } else {
+        totalCents = Math.round(
+          pendingAction!.orders.reduce((sum, o) => sum + o.price_total, 0) * 100
+        );
+      }
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
         body: { amount: totalCents, currency: 'eur', capture_method: isSupermarket ? 'manual' : undefined },
       });
@@ -330,32 +340,36 @@ export default function CommanderScreen() {
     setPlacing(true);
     const orders = pendingAction!.orders;
     const shoppingListText = formatShoppingList(shoppingList);
+    const shoppingTotal = calcShoppingTotal(shoppingList);
     const rows = orders.map(o => {
       const baseNotes = o.notes ?? '';
       const notes = o.service_id === 'supermarket' && shoppingListText
         ? [shoppingListText, baseNotes].filter(Boolean).join('\n\n')
         : baseNotes || null;
+      const isSupermarketOrder = o.service_id === 'supermarket';
+      // price_items for supermarket = estimated items total (from priced list, or agent's estimate)
+      const priceItems = ['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id)
+        ? (isSupermarketOrder && shoppingTotal > 0 ? shoppingTotal : (o.price_items ?? 0))
+        : 0;
       return {
-      client_email: userEmail || null,
-      client_name: userName || null,
-      client_phone: userPhone || null,
-      service_type: o.service_id,
-      pickup_address: o.pickup_address ?? null,
-      dropoff_address: o.dropoff_address,
-      notes,
-      price_total: o.price_total,
-      // Services purs (sans achats) : price_items toujours 0
-      price_items: ['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id)
-        ? (o.price_items ?? 0)
-        : 0,
-      status: 'pending',
-      scheduled_at: o.scheduled_at ?? null,
-      payment_method: o.payment_method,
-      payment_status: stripeIntentId
-        ? (['supermarket'].includes(o.service_id) ? 'preauth' : 'paid')
-        : 'pending',
-      stripe_payment_intent_id: stripeIntentId,
-      validation_code: String(Math.floor(100000 + Math.random() * 900000)),
+        client_email: userEmail || null,
+        client_name: userName || null,
+        client_phone: userPhone || null,
+        service_type: o.service_id,
+        pickup_address: o.pickup_address ?? null,
+        dropoff_address: o.dropoff_address,
+        notes,
+        shopping_list: isSupermarketOrder && shoppingList.length > 0 ? shoppingList : null,
+        price_total: o.price_total,
+        price_items: priceItems,
+        status: 'pending',
+        scheduled_at: o.scheduled_at ?? null,
+        payment_method: o.payment_method,
+        payment_status: stripeIntentId
+          ? (isSupermarketOrder ? 'preauth' : 'paid')
+          : 'pending',
+        stripe_payment_intent_id: stripeIntentId,
+        validation_code: String(Math.floor(100000 + Math.random() * 900000)),
       };
     });
 

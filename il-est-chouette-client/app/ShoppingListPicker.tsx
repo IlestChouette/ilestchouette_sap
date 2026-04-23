@@ -10,7 +10,12 @@ import {
 } from 'react-native';
 import { ORANGE, ORANGE_LIGHT, GRAY_500 } from '@/constants/theme';
 
-export type ShoppingItem = { name: string; brand?: string; quantity: number };
+export type ShoppingItem = {
+  name: string;
+  brand?: string;
+  quantity: number;
+  estimated_price?: number; // price per unit in €
+};
 
 type OFFProduct = { product_name: string; brands?: string; code: string };
 
@@ -24,6 +29,8 @@ export function ShoppingListPicker({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<OFFProduct[]>([]);
   const [searching, setSearching] = useState(false);
+  const [editingPriceIdx, setEditingPriceIdx] = useState<number | null>(null);
+  const [priceInput, setPriceInput] = useState('');
 
   async function search() {
     const q = query.trim();
@@ -51,7 +58,7 @@ export function ShoppingListPicker({
     if (idx >= 0) {
       onChange(items.map((i, index) => index === idx ? { ...i, quantity: i.quantity + 1 } : i));
     } else {
-      onChange([...items, { name, brand, quantity: 1 }]);
+      onChange([...items, { name, brand, quantity: 1, estimated_price: undefined }]);
     }
     setResults([]);
     setQuery('');
@@ -63,6 +70,25 @@ export function ShoppingListPicker({
       .filter(i => i.quantity > 0);
     onChange(updated);
   }
+
+  function startEditPrice(idx: number) {
+    setEditingPriceIdx(idx);
+    setPriceInput(items[idx].estimated_price != null ? String(items[idx].estimated_price) : '');
+  }
+
+  function confirmPrice(idx: number) {
+    const val = parseFloat(priceInput.replace(',', '.'));
+    onChange(items.map((i, index) =>
+      index === idx ? { ...i, estimated_price: isNaN(val) || val <= 0 ? undefined : val } : i
+    ));
+    setEditingPriceIdx(null);
+    setPriceInput('');
+  }
+
+  const estimatedTotal = items.reduce((sum, i) => {
+    return sum + (i.estimated_price != null ? i.estimated_price * i.quantity : 0);
+  }, 0);
+  const allPriced = items.length > 0 && items.every(i => i.estimated_price != null);
 
   return (
     <View style={s.container}>
@@ -104,7 +130,35 @@ export function ShoppingListPicker({
               <View style={s.listItemInfo}>
                 <Text style={s.listItemName} numberOfLines={1}>{item.name}</Text>
                 {item.brand ? <Text style={s.listItemBrand}>{item.brand}</Text> : null}
+
+                {/* Price input */}
+                {editingPriceIdx === idx ? (
+                  <View style={s.priceEditRow}>
+                    <TextInput
+                      style={s.priceInput}
+                      value={priceInput}
+                      onChangeText={setPriceInput}
+                      keyboardType="decimal-pad"
+                      placeholder="Prix €"
+                      placeholderTextColor="#9CA3AF"
+                      autoFocus
+                      onSubmitEditing={() => confirmPrice(idx)}
+                    />
+                    <Pressable style={s.priceConfirmBtn} onPress={() => confirmPrice(idx)}>
+                      <Text style={s.priceConfirmText}>✓</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable onPress={() => startEditPrice(idx)} style={s.priceTap}>
+                    <Text style={[s.priceTag, item.estimated_price == null && s.priceMissing]}>
+                      {item.estimated_price != null
+                        ? `${item.estimated_price.toFixed(2)} € / unité`
+                        : '+ Ajouter le prix estimé'}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
+
               <View style={s.qtyRow}>
                 <Pressable style={s.qtyBtn} onPress={() => updateQty(idx, -1)}>
                   <Text style={s.qtyBtnText}>−</Text>
@@ -116,6 +170,21 @@ export function ShoppingListPicker({
               </View>
             </View>
           ))}
+
+          {/* Running total */}
+          <View style={[s.totalRow, !allPriced && s.totalRowPartial]}>
+            <Text style={s.totalLabel}>
+              {allPriced ? 'Total estimé' : 'Total partiel (prix manquants)'}
+            </Text>
+            <Text style={s.totalValue}>
+              {estimatedTotal > 0 ? `${estimatedTotal.toFixed(2)} €` : '—'}
+            </Text>
+          </View>
+          {!allPriced && (
+            <Text style={s.priceHint}>
+              💡 Ajoutez un prix estimé par article — le coursier pourra le corriger en magasin
+            </Text>
+          )}
         </View>
       )}
 
@@ -128,8 +197,17 @@ export function ShoppingListPicker({
 
 export function formatShoppingList(items: ShoppingItem[]): string {
   if (items.length === 0) return '';
-  const lines = items.map(i => `• ${i.quantity}x ${i.name}${i.brand ? ` (${i.brand})` : ''}`);
-  return `Liste de courses :\n${lines.join('\n')}`;
+  const lines = items.map(i => {
+    const price = i.estimated_price != null ? ` ~${(i.estimated_price * i.quantity).toFixed(2)}€` : '';
+    return `• ${i.quantity}x ${i.name}${i.brand ? ` (${i.brand})` : ''}${price}`;
+  });
+  const total = items.reduce((s, i) => s + (i.estimated_price != null ? i.estimated_price * i.quantity : 0), 0);
+  const totalLine = total > 0 ? `\nTotal estimé : ~${total.toFixed(2)} €` : '';
+  return `Liste de courses :\n${lines.join('\n')}${totalLine}`;
+}
+
+export function calcShoppingTotal(items: ShoppingItem[]): number {
+  return items.reduce((s, i) => s + (i.estimated_price ?? 0) * i.quantity, 0);
 }
 
 const s = StyleSheet.create({
@@ -180,17 +258,41 @@ const s = StyleSheet.create({
   itemsList: { gap: 6 },
   listItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#F9FAFB',
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     gap: 8,
   },
-  listItemInfo: { flex: 1 },
+  listItemInfo: { flex: 1, gap: 4 },
   listItemName: { fontSize: 13, color: '#111827', fontWeight: '500' },
   listItemBrand: { fontSize: 11, color: GRAY_500 },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  priceTap: { alignSelf: 'flex-start' },
+  priceTag: { fontSize: 12, color: ORANGE, fontWeight: '600' },
+  priceMissing: { color: '#9CA3AF', fontStyle: 'italic' },
+  priceEditRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  priceInput: {
+    width: 80,
+    borderWidth: 1,
+    borderColor: ORANGE,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 13,
+    color: '#111827',
+    backgroundColor: '#fff',
+  },
+  priceConfirmBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: ORANGE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  priceConfirmText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 4 },
   qtyBtn: {
     width: 28,
     height: 28,
@@ -202,4 +304,18 @@ const s = StyleSheet.create({
   qtyBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', lineHeight: 20 },
   qtyText: { fontSize: 14, fontWeight: '700', color: '#111827', minWidth: 16, textAlign: 'center' },
   emptyText: { fontSize: 12, color: GRAY_500, textAlign: 'center', paddingVertical: 8 },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  totalRowPartial: { backgroundColor: '#FFF7ED' },
+  totalLabel: { fontSize: 13, fontWeight: '600', color: '#065F46' },
+  totalValue: { fontSize: 15, fontWeight: '800', color: '#065F46' },
+  priceHint: { fontSize: 11, color: '#9CA3AF', textAlign: 'center', fontStyle: 'italic' },
 });

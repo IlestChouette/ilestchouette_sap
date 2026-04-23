@@ -356,7 +356,7 @@ function MissionCard({
 /* ---- Modale de clôture ---- */
 const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL ?? 'https://ilestchouette-sap.vercel.app';
 
-type FinishStep = 'amount' | 'form' | 'signature';
+type FinishStep = 'shopping' | 'amount' | 'form' | 'signature';
 
 function FinishModal({
   assignmentId,
@@ -376,9 +376,15 @@ function FinishModal({
   const isPreauth = order?.service_type === 'supermarket'
     && order?.payment_method === 'online_card'
     && order?.payment_status === 'preauth';
+  const hasShoppingList = isPreauth && (order?.shopping_list?.length ?? 0) > 0;
   const serviceFee = (order?.price_total ?? 0) - (order?.price_items ?? 0);
 
-  const [step, setStep] = useState<FinishStep>(isPreauth ? 'amount' : 'form');
+  // Shopping list state — start from client's list, courier adjusts prices
+  const [shoppingItems, setShoppingItems] = useState<import('@/lib/types').ShoppingItem[]>(
+    order?.shopping_list ?? []
+  );
+
+  const [step, setStep] = useState<FinishStep>(hasShoppingList ? 'shopping' : isPreauth ? 'amount' : 'form');
   const [realAmount, setRealAmount] = useState('');
   const [code, setCode] = useState('');
   const [payment, setPayment] = useState<'cash' | 'card' | 'to_pay' | 'online' | ''>('');
@@ -485,7 +491,120 @@ function FinishModal({
     { key: 'to_pay', label: '🔄 À facturer' },
   ];
 
-  /* ── Étape 0 : Montant réel (supermarché pré-autorisé) ── */
+  /* ── Étape 0 : Liste de courses interactive ── */
+  if (step === 'shopping') {
+    const calcTotal = () => shoppingItems.reduce((s, i) => s + (i.estimated_price ?? 0) * i.quantity, 0);
+    const total = calcTotal();
+    const allPriced = shoppingItems.length > 0 && shoppingItems.every(i => i.estimated_price != null && i.estimated_price > 0);
+
+    function updatePrice(idx: number, val: string) {
+      const price = parseFloat(val.replace(',', '.'));
+      setShoppingItems(prev => prev.map((item, i) =>
+        i === idx ? { ...item, estimated_price: isNaN(price) ? undefined : price } : item
+      ));
+    }
+
+    function markUnavailable(idx: number) {
+      setShoppingItems(prev => prev.filter((_, i) => i !== idx));
+    }
+
+    function updateQty(idx: number, delta: number) {
+      setShoppingItems(prev => prev
+        .map((item, i) => i === idx ? { ...item, quantity: item.quantity + delta } : item)
+        .filter(item => item.quantity > 0)
+      );
+    }
+
+    function confirmList() {
+      const t = calcTotal();
+      setRealAmount(t > 0 ? t.toFixed(2) : '');
+      setStep('amount');
+    }
+
+    return (
+      <View style={styles.overlay}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+          <Text style={styles.modalTitle}>🛒 Liste de courses</Text>
+          <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+            Ajuste les prix et quantités selon ce que tu trouves en magasin. Supprime les articles indisponibles.
+          </Text>
+
+          {shoppingItems.map((item, idx) => (
+            <View key={idx} style={fmStyles.itemRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={fmStyles.itemName} numberOfLines={1}>{item.name}</Text>
+                {item.brand ? <Text style={fmStyles.itemBrand}>{item.brand}</Text> : null}
+                <View style={fmStyles.itemControls}>
+                  {/* Quantity */}
+                  <View style={fmStyles.qtyRow}>
+                    <Pressable style={fmStyles.qtyBtn} onPress={() => updateQty(idx, -1)}>
+                      <Text style={fmStyles.qtyBtnText}>−</Text>
+                    </Pressable>
+                    <Text style={fmStyles.qtyText}>{item.quantity}</Text>
+                    <Pressable style={fmStyles.qtyBtn} onPress={() => updateQty(idx, 1)}>
+                      <Text style={fmStyles.qtyBtnText}>+</Text>
+                    </Pressable>
+                  </View>
+                  {/* Price input */}
+                  <View style={fmStyles.priceRow}>
+                    <TextInput
+                      style={[fmStyles.priceInput, item.estimated_price == null && fmStyles.priceInputMissing]}
+                      value={item.estimated_price != null ? String(item.estimated_price) : ''}
+                      onChangeText={v => updatePrice(idx, v)}
+                      keyboardType="decimal-pad"
+                      placeholder="Prix €"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                    <Text style={fmStyles.priceUnit}>€/u</Text>
+                  </View>
+                  {/* Subtotal */}
+                  {item.estimated_price != null && (
+                    <Text style={fmStyles.subtotal}>= {(item.estimated_price * item.quantity).toFixed(2)} €</Text>
+                  )}
+                </View>
+              </View>
+              <Pressable style={fmStyles.unavailBtn} onPress={() => markUnavailable(idx)}>
+                <Text style={fmStyles.unavailText}>✕{'\n'}Indispo</Text>
+              </Pressable>
+            </View>
+          ))}
+
+          {shoppingItems.length === 0 && (
+            <Text style={{ color: '#9CA3AF', textAlign: 'center', marginVertical: 16 }}>
+              Tous les articles ont été marqués indisponibles
+            </Text>
+          )}
+
+          {/* Total */}
+          <View style={[fmStyles.totalBox, !allPriced && { backgroundColor: '#FFF7ED' }]}>
+            <Text style={fmStyles.totalLabel}>Total articles</Text>
+            <Text style={[fmStyles.totalValue, !allPriced && { color: '#EA580C' }]}>
+              {total > 0 ? `${total.toFixed(2)} €` : '—'}
+            </Text>
+          </View>
+          {!allPriced && shoppingItems.length > 0 && (
+            <Text style={{ fontSize: 11, color: '#EA580C', textAlign: 'center', marginTop: 4 }}>
+              ⚠️ Remplis tous les prix avant de continuer
+            </Text>
+          )}
+
+          <Pressable
+            style={[styles.actionBtn, styles.acceptBtn, { marginTop: 16 }, (!allPriced && shoppingItems.length > 0) && { opacity: 0.4 }]}
+            onPress={confirmList}
+            disabled={!allPriced && shoppingItems.length > 0}
+          >
+            <Text style={styles.acceptBtnText}>Confirmer et aller en caisse →</Text>
+          </Pressable>
+
+          <Pressable onPress={onClose} style={{ marginTop: 12, alignItems: 'center' }}>
+            <Text style={{ color: '#9CA3AF', fontSize: 13 }}>Annuler</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  /* ── Étape 0b : Montant réel (supermarché pré-autorisé) ── */
   if (step === 'amount') {
     const realVal = parseFloat(realAmount.replace(',', '.')) || 0;
     const captureCents = Math.round((serviceFee + realVal) * 100);
@@ -842,7 +961,7 @@ export default function DashboardScreen() {
     const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
       supabase
         .from('assignments')
-        .select('id,order_id,courier_email,assigned_at,status,payment_method,validated_with_code, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,price_items,express,created_at,scheduled_at,validation_code,status,wants_invoice,client_email,client_name,client_phone,payment_method,payment_status,stripe_payment_intent_id)')
+        .select('id,order_id,courier_email,assigned_at,status,payment_method,validated_with_code, order:orders(id,service_type,pickup_address,pickup_place_name,dropoff_address,notes,access_info,price_total,price_items,express,created_at,scheduled_at,validation_code,status,wants_invoice,client_email,client_name,client_phone,payment_method,payment_status,stripe_payment_intent_id,shopping_list)')
         .eq('courier_email', userEmail)
         .in('status', ['assigned', 'acceptee'])
         .order('assigned_at', { ascending: false }),
@@ -1121,6 +1240,50 @@ export default function DashboardScreen() {
     </View>
   );
 }
+
+const fmStyles = StyleSheet.create({
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  itemName: { fontSize: 14, fontWeight: '700', color: '#111827' },
+  itemBrand: { fontSize: 11, color: '#6B7280', marginTop: 1 },
+  itemControls: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' },
+  qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  qtyBtn: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: ORANGE, alignItems: 'center', justifyContent: 'center',
+  },
+  qtyBtnText: { color: '#fff', fontSize: 14, fontWeight: '700', lineHeight: 18 },
+  qtyText: { fontSize: 13, fontWeight: '700', color: '#111827', minWidth: 14, textAlign: 'center' },
+  priceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  priceInput: {
+    width: 70, borderWidth: 1, borderColor: '#D1D5DB',
+    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
+    fontSize: 13, color: '#111827', backgroundColor: '#fff', textAlign: 'center',
+  },
+  priceInputMissing: { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' },
+  priceUnit: { fontSize: 12, color: '#6B7280' },
+  subtotal: { fontSize: 12, fontWeight: '700', color: '#065F46' },
+  unavailBtn: {
+    backgroundColor: '#FEE2E2', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center',
+    minWidth: 54,
+  },
+  unavailText: { fontSize: 10, color: '#DC2626', fontWeight: '700', textAlign: 'center' },
+  totalBox: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#ECFDF5', borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 14, marginTop: 12,
+  },
+  totalLabel: { fontSize: 14, fontWeight: '600', color: '#065F46' },
+  totalValue: { fontSize: 20, fontWeight: '800', color: '#065F46' },
+});
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },

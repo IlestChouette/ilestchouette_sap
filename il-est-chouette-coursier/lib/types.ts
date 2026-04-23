@@ -6,6 +6,13 @@ export type AssignmentStatus =
   | 'terminee'
   | 'annulee';
 
+export type ShoppingItem = {
+  name: string;
+  brand?: string;
+  quantity: number;
+  estimated_price?: number;
+};
+
 export type Order = {
   id: string;
   service_type?: string | null;
@@ -29,6 +36,7 @@ export type Order = {
   payment_method?: string | null;
   payment_status?: string | null;
   stripe_payment_intent_id?: string | null;
+  shopping_list?: ShoppingItem[] | null;
 };
 
 export type Assignment = {
