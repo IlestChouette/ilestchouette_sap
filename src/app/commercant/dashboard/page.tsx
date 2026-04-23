@@ -61,8 +61,13 @@ export default function MerchantDashboard() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotStatus, setForgotStatus] = useState<"idle" | "sent" | "error">("idle");
 
-  // Reset password (logged in)
-  const [resetPwStatus, setResetPwStatus] = useState<"idle" | "sent" | "error">("idle");
+  // Change password form (logged in, inline in info tab)
+  const [changePwOpen, setChangePwOpen] = useState(false);
+  const [changePwNew, setChangePwNew] = useState("");
+  const [changePwConfirm, setChangePwConfirm] = useState("");
+  const [changePwSaving, setChangePwSaving] = useState(false);
+  const [changePwError, setChangePwError] = useState("");
+  const [changePwSuccess, setChangePwSuccess] = useState(false);
 
   // New password form (arrived from reset email link)
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -169,6 +174,22 @@ export default function MerchantDashboard() {
     setLoading(false);
   }
 
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setChangePwError("");
+    setChangePwSuccess(false);
+    if (changePwNew.length < 8) { setChangePwError("Minimum 8 caractères."); return; }
+    if (changePwNew !== changePwConfirm) { setChangePwError("Les mots de passe ne correspondent pas."); return; }
+    setChangePwSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: changePwNew });
+    setChangePwSaving(false);
+    if (error) { setChangePwError("Erreur : " + error.message); return; }
+    setChangePwSuccess(true);
+    setChangePwNew("");
+    setChangePwConfirm("");
+    setTimeout(() => { setChangePwOpen(false); setChangePwSuccess(false); }, 2000);
+  }
+
   async function handleSetNewPassword(e: React.FormEvent) {
     e.preventDefault();
     setNewPwError("");
@@ -195,15 +216,6 @@ export default function MerchantDashboard() {
     setForgotStatus(error ? "error" : "sent");
   }
 
-  async function handleSendResetEmail() {
-    setResetPwStatus("idle");
-    const email = session?.user?.email;
-    if (!email) return;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/commercant/dashboard`,
-    });
-    setResetPwStatus(error ? "error" : "sent");
-  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -731,17 +743,33 @@ export default function MerchantDashboard() {
                 )}
                 <div className="pt-3 border-t border-gray-100 space-y-3">
                   <p className="text-gray-400 text-xs">Pour modifier le nom, l&apos;adresse ou le SIRET : allo@ilestchouette.fr</p>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600">Mot de passe</p>
-                    <button
-                      onClick={handleSendResetEmail}
-                      disabled={resetPwStatus === "sent"}
-                      className="text-sm text-orange-500 font-semibold hover:text-orange-600 disabled:opacity-50 transition">
-                      {resetPwStatus === "sent" ? "Email envoyé ✓" : resetPwStatus === "error" ? "Erreur — réessayer" : "Réinitialiser"}
+                  {!changePwOpen ? (
+                    <button onClick={() => setChangePwOpen(true)}
+                      className="w-full border border-orange-200 text-orange-500 font-semibold py-2.5 rounded-xl hover:bg-orange-50 transition text-sm">
+                      🔐 Changer mon mot de passe
                     </button>
-                  </div>
-                  {resetPwStatus === "sent" && (
-                    <p className="text-xs text-green-600">Un lien de réinitialisation a été envoyé à {session?.user?.email}</p>
+                  ) : (
+                    <form onSubmit={handleChangePassword} className="space-y-3 bg-orange-50 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-gray-700">Nouveau mot de passe</p>
+                      <input type="password" value={changePwNew} onChange={(e) => setChangePwNew(e.target.value)}
+                        placeholder="Minimum 8 caractères" required minLength={8}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white" />
+                      <input type="password" value={changePwConfirm} onChange={(e) => setChangePwConfirm(e.target.value)}
+                        placeholder="Confirmer le mot de passe" required
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white" />
+                      {changePwError && <p className="text-red-500 text-xs">{changePwError}</p>}
+                      {changePwSuccess && <p className="text-green-600 text-xs font-semibold">Mot de passe modifié ✓</p>}
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => { setChangePwOpen(false); setChangePwNew(""); setChangePwConfirm(""); setChangePwError(""); }}
+                          className="flex-1 border border-gray-200 text-gray-500 font-semibold py-2 rounded-xl text-sm">
+                          Annuler
+                        </button>
+                        <button type="submit" disabled={changePwSaving}
+                          className="flex-1 bg-orange-500 text-white font-bold py-2 rounded-xl hover:bg-orange-600 disabled:opacity-50 text-sm">
+                          {changePwSaving ? "Enregistrement…" : "Enregistrer"}
+                        </button>
+                      </div>
+                    </form>
                   )}
                 </div>
               </div>
