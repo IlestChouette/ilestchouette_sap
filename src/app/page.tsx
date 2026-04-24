@@ -88,8 +88,8 @@ const faqJsonLd = {
     },
     {
       "@type": "Question",
-      name: "Comment commander une livraison de courses à domicile à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Contactez-nous par téléphone ou WhatsApp au 06 95 42 73 12, ou commandez via notre application mobile. À partir de 8 € + 1 €/km." },
+      name: "Comment fonctionne le service de courses drive à Nice ?",
+      acceptedAnswer: { "@type": "Answer", text: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Notre coursier récupère la commande en votre nom et vous la livre. À partir de 8 € + 1 €/km (frais de livraison uniquement — vos courses sont déjà réglées en ligne)." },
     },
     {
       "@type": "Question",

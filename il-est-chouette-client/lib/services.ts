@@ -42,7 +42,7 @@ export const SERVICES: Service[] = [
     emoji: '🛍️',
     labelKey: 'services.shopping',
     descKey: 'services.shopping_desc',
-    base: 8,
+    base: 10,
     type: 'flat',
     needsPickup: true,
   },

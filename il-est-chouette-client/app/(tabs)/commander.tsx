@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -17,8 +18,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
 import i18n from '@/lib/i18n';
 import { ORANGE, ORANGE_LIGHT, ORANGE_DARK, GRAY_500, BG } from '@/constants/theme';
-import { ShoppingListPicker, formatShoppingList, calcShoppingTotal } from '@/app/ShoppingListPicker';
-import type { ShoppingItem } from '@/app/ShoppingListPicker';
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
 
@@ -67,7 +66,6 @@ export default function CommanderScreen() {
   const [pendingAction, setPendingAction] = useState<OrderAction | null>(null);
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState(false);
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
   const [userPhone, setUserPhone] = useState('');
@@ -87,7 +85,6 @@ export default function CommanderScreen() {
           setMessages([]);
           setPendingAction(null);
           setDone(false);
-          setShoppingList([]);
           initialLoadDoneRef.current = false;
           loadAndStart();
         } else if (!initialLoadDoneRef.current) {
@@ -173,8 +170,13 @@ export default function CommanderScreen() {
         await AsyncStorage.removeItem('pending_service');
         try {
           const svc = JSON.parse(pendingService);
-          const serviceLabel = SERVICE_LABELS[svc.id] ?? svc.id;
-          initialMessages = [{ role: 'user', content: `Je voudrais: ${serviceLabel}` }];
+          if (svc.merchant_name) {
+            // Came from a merchant banner — jump straight to that merchant
+            initialMessages = [{ role: 'user', content: `Je voudrais commander chez ${svc.merchant_name}` }];
+          } else {
+            const serviceLabel = SERVICE_LABELS[svc.id] ?? svc.id;
+            initialMessages = [{ role: 'user', content: `Je voudrais: ${serviceLabel}` }];
+          }
         } catch {}
       }
 
@@ -289,22 +291,11 @@ export default function CommanderScreen() {
   async function handleStripePayment() {
     setPlacing(true);
     try {
-      const isSupermarket = pendingAction!.orders.some(o => o.service_id === 'supermarket');
-      // For supermarket with a priced list: pre-auth = items total + service fee + 30% buffer
-      let totalCents: number;
-      if (isSupermarket && shoppingList.length > 0 && calcShoppingTotal(shoppingList) > 0) {
-        const itemsTotal = calcShoppingTotal(shoppingList);
-        const serviceFee = pendingAction!.orders
-          .filter(o => o.service_id === 'supermarket')
-          .reduce((s, o) => s + o.price_total - (o.price_items ?? 0), 0);
-        totalCents = Math.round((itemsTotal * 1.3 + serviceFee) * 100);
-      } else {
-        totalCents = Math.round(
-          pendingAction!.orders.reduce((sum, o) => sum + o.price_total, 0) * 100
-        );
-      }
+      const totalCents = Math.round(
+        pendingAction!.orders.reduce((sum, o) => sum + o.price_total, 0) * 100
+      );
       const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-        body: { amount: totalCents, currency: 'eur', capture_method: isSupermarket ? 'manual' : undefined },
+        body: { amount: totalCents, currency: 'eur' },
       });
       if (error || !data?.clientSecret) {
         Alert.alert('Erreur', 'Paiement impossible, réessayez');
@@ -339,17 +330,9 @@ export default function CommanderScreen() {
   async function placeOrders(stripeIntentId: string | null) {
     setPlacing(true);
     const orders = pendingAction!.orders;
-    const shoppingListText = formatShoppingList(shoppingList);
-    const shoppingTotal = calcShoppingTotal(shoppingList);
     const rows = orders.map(o => {
-      const baseNotes = o.notes ?? '';
-      const notes = o.service_id === 'supermarket' && shoppingListText
-        ? [shoppingListText, baseNotes].filter(Boolean).join('\n\n')
-        : baseNotes || null;
-      const isSupermarketOrder = o.service_id === 'supermarket';
-      // price_items for supermarket = estimated items total (from priced list, or agent's estimate)
-      const priceItems = ['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id)
-        ? (isSupermarketOrder && shoppingTotal > 0 ? shoppingTotal : (o.price_items ?? 0))
+      const priceItems = ['meds', 'food', 'shopping'].includes(o.service_id)
+        ? (o.price_items ?? 0)
         : 0;
       return {
         client_email: userEmail || null,
@@ -358,16 +341,14 @@ export default function CommanderScreen() {
         service_type: o.service_id,
         pickup_address: o.pickup_address ?? null,
         dropoff_address: o.dropoff_address,
-        notes,
-        shopping_list: isSupermarketOrder && shoppingList.length > 0 ? shoppingList : null,
+        notes: o.notes || null,
+        shopping_list: null,
         price_total: o.price_total,
         price_items: priceItems,
         status: 'pending',
         scheduled_at: o.scheduled_at ?? null,
         payment_method: o.payment_method,
-        payment_status: stripeIntentId
-          ? (isSupermarketOrder ? 'preauth' : 'paid')
-          : 'pending',
+        payment_status: stripeIntentId ? 'paid' : 'pending',
         stripe_payment_intent_id: stripeIntentId,
         validation_code: String(Math.floor(100000 + Math.random() * 900000)),
       };
@@ -411,7 +392,6 @@ export default function CommanderScreen() {
             setDone(false);
             setMessages([]);
             setPendingAction(null);
-            setShoppingList([]);
             loadAndStart();
           }},
         ]
@@ -420,7 +400,6 @@ export default function CommanderScreen() {
       setDone(false);
       setMessages([]);
       setPendingAction(null);
-      setShoppingList([]);
       loadAndStart();
     }
   }
@@ -527,11 +506,11 @@ export default function CommanderScreen() {
                         <ConfirmRow label="Livraison" value={o.dropoff_address} />
                         {o.notes ? <ConfirmRow label="Détails" value={o.notes} /> : null}
                         <ConfirmRow label="Horaire" value={o.is_asap ? '⚡ À faire tout de suite' : o.scheduled_at ?? 'Planifié'} />
-                        {(['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id) && (o.price_items ?? 0) > 0) ? (
+                        {(['meds', 'food', 'shopping'].includes(o.service_id) && (o.price_items ?? 0) > 0) ? (
                           <ConfirmRow label="🛒 Articles (à payer au coursier)" value={`${(o.price_items ?? 0).toFixed(2)} €`} />
                         ) : null}
                         {o.service_id !== 'other' && (
-                          <ConfirmRow label="⚡ Frais de service" value={`${(['supermarket', 'meds', 'food', 'shopping'].includes(o.service_id) ? (o.price_total - (o.price_items ?? 0)) : o.price_total).toFixed(2)} €`} />
+                          <ConfirmRow label="⚡ Frais de service" value={`${(['meds', 'food', 'shopping'].includes(o.service_id) ? (o.price_total - (o.price_items ?? 0)) : o.price_total).toFixed(2)} €`} />
                         )}
                         {o.service_id === 'other' && (
                           <View style={styles.devisRow}>
@@ -564,10 +543,17 @@ export default function CommanderScreen() {
                     <Text style={styles.confirmTotalLabel}>Total</Text>
                     <Text style={styles.confirmTotalValue}>{grandTotal.toFixed(2)} €</Text>
                   </View>
-                  {pendingAction.orders.some(o => (o.price_items ?? 0) > 0) && (
+                  {pendingAction.orders.some(o => ['meds', 'food', 'shopping'].includes(o.service_id) && (o.price_items ?? 0) > 0) && (
                     <View style={styles.purchaseNote}>
                       <Text style={styles.purchaseNoteText}>
-                        ℹ️ Les articles ({pendingAction.orders.reduce((s, o) => s + (o.price_items ?? 0), 0).toFixed(2)} €) sont réglés directement au coursier à la livraison. Seuls les frais de service sont facturés ici.
+                        ℹ️ Les articles ({pendingAction.orders.reduce((s, o) => ['meds', 'food', 'shopping'].includes(o.service_id) ? s + (o.price_items ?? 0) : s, 0).toFixed(2)} €) sont réglés directement au coursier à la livraison. Seuls les frais de service sont facturés ici.
+                      </Text>
+                    </View>
+                  )}
+                  {pendingAction.orders.some(o => o.service_id === 'supermarket') && (
+                    <View style={styles.purchaseNote}>
+                      <Text style={styles.purchaseNoteText}>
+                        🛒 Le coursier récupère votre commande drive. Préparez votre pièce d'identité — le coursier en aura besoin pour retirer la commande en votre nom.
                       </Text>
                     </View>
                   )}
@@ -577,9 +563,6 @@ export default function CommanderScreen() {
                         📋 Saisissez le prix convenu avec notre équipe dans le champ ci-dessus, puis confirmez pour procéder au paiement.
                       </Text>
                     </View>
-                  )}
-                  {pendingAction.orders.some(o => o.service_id === 'supermarket') && (
-                    <ShoppingListPicker items={shoppingList} onChange={setShoppingList} />
                   )}
                   <Pressable style={styles.confirmBtn} onPress={handleConfirmOrder} disabled={placing}>
                     {placing

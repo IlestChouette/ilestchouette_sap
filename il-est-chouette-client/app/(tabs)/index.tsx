@@ -118,7 +118,7 @@ export default function HomeScreen() {
                   <Pressable
                     style={styles.merchantCard}
                     onPress={() => {
-                      AsyncStorage.setItem('pending_service', JSON.stringify({ id: 'food', label: m.name }));
+                      AsyncStorage.setItem('pending_service', JSON.stringify({ id: 'food', label: m.name, merchant_id: m.id, merchant_name: m.name }));
                       router.push('/commander');
                     }}
                   >

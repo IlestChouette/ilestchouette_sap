@@ -66,7 +66,7 @@ const PRICING = [
   { label: "Médicaments & pharmacie", price: "6 € + 1 €/km" },
   { label: "Nourriture & repas", price: "5 € + 1 €/km" },
   { label: "Clés / objets & petits colis", price: "6 € + 1 €/km" },
-  { label: "Achats boutiques & petits commerces", price: "8 € + 1 €/km" },
+  { label: "Achats boutiques & petits commerces", price: "10 € + 1 €/km" },
   { label: "Accompagnement (rendez-vous, aide, démarches…)", price: "25 € / heure" },
   { label: "Voiturier (hôtel, résidence, événements…)", price: "25 € / heure" },
   { label: "Dépannage informatique à domicile", price: "65 € / heure" },
@@ -80,8 +80,8 @@ const FAQ = [
     a: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules, fixation de tableaux... Tarif : 60 € / heure. Contactez-nous au 06 95 42 73 12.",
   },
   {
-    q: "Comment commander une livraison de courses à domicile à Nice ?",
-    a: "Contactez-nous par téléphone ou WhatsApp au 06 95 42 73 12, ou commandez via notre application mobile. Donnez-nous votre liste et votre adresse — un coursier se déplace dans votre magasin et vous livre. À partir de 8 € + 1 €/km.",
+    q: "Comment fonctionne le service de courses drive à Nice ?",
+    a: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Notre coursier récupère la commande en votre nom et vous la livre. À partir de 8 € + 1 €/km (frais de livraison uniquement — vos courses sont déjà réglées en ligne). Votre pièce d'identité sera demandée au retrait.",
   },
   {
     q: "Livrez-vous des médicaments à domicile à Nice ?",
