@@ -553,7 +553,7 @@ export default function CommanderScreen() {
                   {pendingAction.orders.some(o => o.service_id === 'supermarket') && (
                     <View style={styles.purchaseNote}>
                       <Text style={styles.purchaseNoteText}>
-                        🛒 Le coursier récupère votre commande drive. Préparez votre pièce d'identité — le coursier en aura besoin pour retirer la commande en votre nom.
+                        🛒 Prévenez votre drive qu'un coursier d'Il est chouette viendra récupérer la commande en votre nom. Si une pièce d'identité est demandée, envoyez-nous une photo par WhatsApp au 06 95 42 73 12.
                       </Text>
                     </View>
                   )}

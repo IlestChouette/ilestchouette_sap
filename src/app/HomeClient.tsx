@@ -81,7 +81,7 @@ const FAQ = [
   },
   {
     q: "Comment fonctionne le service de courses drive à Nice ?",
-    a: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Notre coursier récupère la commande en votre nom et vous la livre. À partir de 8 € + 1 €/km (frais de livraison uniquement — vos courses sont déjà réglées en ligne). Votre pièce d'identité sera demandée au retrait.",
+    a: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer en votre nom. Si une pièce d'identité est demandée, envoyez-nous une photo via WhatsApp. Notre coursier récupère et vous livre. À partir de 8 € + 1 €/km (frais de livraison uniquement).",
   },
   {
     q: "Livrez-vous des médicaments à domicile à Nice ?",
