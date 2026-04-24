@@ -163,9 +163,8 @@ Then ask for ALL of these in ONE message:
 3. Name on the order / drive account
 4. Delivery address
 5. Payment method (service fee only — client already paid at drive)
-IMPORTANT instructions to give the client (include in your reply):
-- "Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer la commande en votre nom."
-- "Si le drive demande une pièce d'identité, envoyez-nous une photo via WhatsApp au 06 95 42 73 12 — notre coursier la présentera pour vous."
+IMPORTANT instruction to give the client (include in your reply):
+- "Prévenez votre drive qu'un coursier d'Il est chouette viendra récupérer la commande en votre nom."
 In the ACTION block: set notes to include ALL drive details (order number, pickup time, name on account).
 
 SHOPPING FLOW:

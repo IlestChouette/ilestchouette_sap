@@ -89,7 +89,7 @@ const faqJsonLd = {
     {
       "@type": "Question",
       name: "Comment fonctionne le service de courses drive à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer en votre nom — si une pièce d'identité est demandée, envoyez-nous une photo par WhatsApp. À partir de 8 € + 1 €/km (frais de livraison uniquement)." },
+      acceptedAnswer: { "@type": "Answer", text: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer en votre nom. Notre coursier récupère et vous livre. À partir de 8 € + 1 €/km (frais de livraison uniquement)." },
     },
     {
       "@type": "Question",
