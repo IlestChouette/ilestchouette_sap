@@ -1,10 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  FlatList,
+  ActivityIndicator,
+  Linking,
+  LayoutAnimation,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  UIManager,
   View,
   Image,
 } from 'react-native';
@@ -20,24 +24,50 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 type MerchantProduct = { id: string; name: string; price: number; image_url?: string; is_featured?: boolean };
 type MerchantWithProducts = { id: string; name: string; category: string; address: string; products: MerchantProduct[] };
 
+// Active LayoutAnimation sur Android
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
+
 export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [userEmail, setUserEmail] = useState('');
+  const [userName, setUserName] = useState('');
   const [merchants, setMerchants] = useState<MerchantWithProducts[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Rechargement à chaque fois que l'écran prend le focus (retour depuis suivi, etc.)
   useFocusEffect(
     useCallback(() => {
-      async function loadUser() {
+      async function loadAll() {
+        setLoading(true);
         const { data } = await supabase.auth.getSession();
-        const email = data.session?.user?.email ?? '';
+        const user = data.session?.user;
+        const email = user?.email ?? '';
         setUserEmail(email);
-        if (email) loadActiveOrder(email);
+
+        // Charge le prénom depuis le profil
+        if (user?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+          if (profile?.full_name) {
+            setUserName(profile.full_name.split(' ')[0]);
+          } else if (email) {
+            setUserName(email.split('@')[0]);
+          }
+        }
+
+        if (email) await loadActiveOrder(email);
+        await loadMerchants();
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setLoading(false);
       }
-      loadUser();
-      loadMerchants();
+      loadAll();
     }, [])
   );
 
@@ -82,11 +112,20 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Image source={require('@/assets/images/icon.png')} style={styles.logo} resizeMode="contain" />
-        <View>
+        <View style={{ flex: 1 }}>
+          {userName ? (
+            <Text style={styles.headerGreeting}>Bonjour {userName} 👋</Text>
+          ) : null}
           <Text style={styles.headerTitle}>{t('home.title')}</Text>
           <Text style={styles.headerSub}>{t('home.subtitle')}</Text>
         </View>
       </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={ORANGE} />
+        </View>
+      ) : null}
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Bannière commande active */}
@@ -104,19 +143,21 @@ export default function HomeScreen() {
         {/* Section partenaires avec photos */}
         {merchants.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏪 Nos partenaires</Text>
-            <FlatList
+            <Text style={styles.sectionTitle}>Nos partenaires</Text>
+            <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              data={merchants}
-              keyExtractor={(m) => m.id}
               contentContainerStyle={{ gap: 12 }}
-              renderItem={({ item: m }) => {
+            >
+              {merchants.map((m) => {
                 const featured = m.products.filter((p) => p.is_featured);
                 const shown = featured.length > 0 ? featured : m.products.slice(0, 4);
                 return (
                   <Pressable
+                    key={m.id}
                     style={styles.merchantCard}
+                    accessibilityLabel={`Commander chez ${m.name}`}
+                    accessibilityRole="button"
                     onPress={() => {
                       AsyncStorage.setItem('pending_service', JSON.stringify({ id: 'food', label: m.name, merchant_id: m.id, merchant_name: m.name }));
                       router.push('/commander');
@@ -129,7 +170,11 @@ export default function HomeScreen() {
                         {shown.map((p) => (
                           <View key={p.id} style={styles.productThumb}>
                             {p.image_url ? (
-                              <Image source={{ uri: p.image_url }} style={styles.productImg} />
+                              <Image
+                                source={{ uri: p.image_url }}
+                                style={styles.productImg}
+                                accessibilityLabel={p.name}
+                              />
                             ) : (
                               <View style={[styles.productImg, styles.productImgPlaceholder]}>
                                 <Text style={{ fontSize: 20 }}>🍽️</Text>
@@ -146,8 +191,8 @@ export default function HomeScreen() {
                     </View>
                   </Pressable>
                 );
-              }}
-            />
+              })}
+            </ScrollView>
           </View>
         )}
 
@@ -174,10 +219,15 @@ export default function HomeScreen() {
         </View>
 
         {/* Footer contact */}
-        <View style={styles.contactBox}>
+        <Pressable
+          style={styles.contactBox}
+          onPress={() => Linking.openURL('tel:0695427312')}
+          accessibilityLabel="Appeler le service client au 06 95 42 73 12"
+          accessibilityRole="button"
+        >
           <Text style={styles.contactText}>📞 06 95 42 73 12</Text>
           <Text style={styles.contactSub}>Besoin d'aide ? Appelez-nous !</Text>
-        </View>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -194,6 +244,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   logo: { width: 44, height: 44, borderRadius: 10 },
+  headerGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '600', marginBottom: 1 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: '#fff' },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   scroll: { padding: 16, gap: 16, paddingBottom: 40 },
@@ -227,7 +278,7 @@ const styles = StyleSheet.create({
   serviceCardPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   serviceEmoji: { fontSize: 32 },
   serviceLabel: { fontSize: 14, fontWeight: '700', color: '#111827' },
-  serviceDesc: { fontSize: 11, color: GRAY_500 },
+  serviceDesc: { fontSize: 13, color: GRAY_500 },
   priceTag: { backgroundColor: ORANGE_LIGHT, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 4 },
   priceText: { fontSize: 11, fontWeight: '700', color: ORANGE },
   contactBox: { backgroundColor: '#fff', borderRadius: 16, padding: 16, alignItems: 'center', gap: 4, marginTop: 4 },
@@ -241,12 +292,13 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3,
   },
   merchantName: { fontSize: 15, fontWeight: '800', color: '#111827' },
-  merchantCat: { fontSize: 11, color: GRAY_500, marginTop: 2 },
+  merchantCat: { fontSize: 12, color: GRAY_500, marginTop: 2 },
   productThumb: { width: 90, alignItems: 'center', gap: 4 },
   productImg: { width: 90, height: 70, borderRadius: 10, overflow: 'hidden' },
   productImgPlaceholder: { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' },
-  productName: { fontSize: 11, fontWeight: '600', color: '#374151', textAlign: 'center' },
-  productPrice: { fontSize: 11, fontWeight: '700', color: ORANGE },
+  productName: { fontSize: 12, fontWeight: '600', color: '#374151', textAlign: 'center' },
+  productPrice: { fontSize: 12, fontWeight: '700', color: ORANGE },
+  loadingContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
   orderBtn: { backgroundColor: ORANGE_LIGHT, borderRadius: 10, paddingVertical: 8, alignItems: 'center', marginTop: 10 },
   orderBtnText: { fontSize: 12, fontWeight: '700', color: ORANGE },
 });

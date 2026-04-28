@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +32,12 @@ export default function SuiviScreen() {
   const [cancelledOrder, setCancelledOrder] = useState<Order | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
 
+  // Notation post-livraison
+  const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const shownRatingIds = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -53,7 +59,15 @@ export default function SuiviScreen() {
             if (updated.status === 'annulee' && updated.cancellation_reason === 'no_courier') {
               setCancelledOrder(updated);
               setOrders(prev => prev.filter(o => o.id !== updated.id));
-            } else if (updated.status === 'terminee' || updated.status === 'annulee') {
+            } else if (updated.status === 'terminee') {
+              setOrders(prev => prev.filter(o => o.id !== updated.id));
+              // Proposer une notation si pas encore notée
+              if (!shownRatingIds.current.has(updated.id)) {
+                shownRatingIds.current.add(updated.id);
+                setSelectedRating(0);
+                setRatingOrder(updated);
+              }
+            } else if (updated.status === 'annulee') {
               setOrders(prev => prev.filter(o => o.id !== updated.id));
             } else {
               setOrders(prev => prev.map(o => o.id === updated.id ? updated : o));
@@ -129,6 +143,26 @@ export default function SuiviScreen() {
     if (!silent) setLoading(false);
   }
 
+  async function submitRating(stars: number) {
+    if (!ratingOrder) return;
+    setSubmittingRating(true);
+    try {
+      // Fire-and-forget — ne bloque pas si la table n'existe pas encore
+      await supabase.from('order_ratings').insert({
+        order_id: ratingOrder.id,
+        client_email: userEmail || null,
+        stars,
+        created_at: new Date().toISOString(),
+      });
+    } catch { /* silencieux */ }
+    setSubmittingRating(false);
+    setRatingOrder(null);
+  }
+
+  function dismissRating() {
+    setRatingOrder(null);
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -142,7 +176,12 @@ export default function SuiviScreen() {
       <View style={styles.empty}>
         <Text style={styles.emptyEmoji}>🚴</Text>
         <Text style={styles.emptyTitle}>{t('tracking.no_order')}</Text>
-        <Pressable style={styles.orderBtn} onPress={() => router.push('/commander')}>
+        <Pressable
+          style={styles.orderBtn}
+          onPress={() => router.push('/commander')}
+          accessibilityLabel={t('tracking.place_order')}
+          accessibilityRole="button"
+        >
           <Text style={styles.orderBtnText}>{t('tracking.place_order')}</Text>
         </Pressable>
       </View>
@@ -194,6 +233,46 @@ export default function SuiviScreen() {
         </View>
       </Modal>
 
+      {/* Modal notation post-livraison */}
+      <Modal visible={!!ratingOrder} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalEmoji}>🎉</Text>
+            <Text style={styles.modalTitle}>Commande livrée !</Text>
+            <Text style={styles.modalText}>
+              Comment s'est passée votre expérience ?
+            </Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable
+                  key={star}
+                  onPress={() => setSelectedRating(star)}
+                  style={styles.starBtn}
+                  accessibilityLabel={`${star} étoile${star > 1 ? 's' : ''}`}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.starText, star <= selectedRating && styles.starActive]}>
+                    ★
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              style={[styles.modalBtn, styles.modalBtnPrimary, !selectedRating && { opacity: 0.4 }]}
+              onPress={() => selectedRating > 0 && submitRating(selectedRating)}
+              disabled={!selectedRating || submittingRating}
+            >
+              <Text style={styles.modalBtnPrimaryText}>
+                {submittingRating ? 'Envoi...' : 'Envoyer mon avis'}
+              </Text>
+            </Pressable>
+            <Pressable style={[styles.modalBtn, styles.modalBtnSecondary]} onPress={dismissRating}>
+              <Text style={styles.modalBtnSecondaryText}>Passer</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerEmoji}>🚴</Text>
@@ -240,6 +319,9 @@ function OrderCard({ order, index, total, t }: { order: Order; index: number; to
       {/* Details */}
       <View style={styles.cardBody}>
         <DetailRow icon="🔧" label={t('tracking.service')} value={`${service?.emoji ?? ''} ${service ? t(service.labelKey) : order.service_type}`} />
+        {(order as any).courier_name && (
+          <DetailRow icon="🧑‍🦱" label="Coursier" value={(order as any).courier_name} />
+        )}
         {order.pickup_address && <DetailRow icon="📍" label={t('tracking.pickup')} value={order.pickup_address} />}
         <DetailRow icon="🏁" label={t('tracking.dropoff')} value={order.dropoff_address} />
         {order.scheduled_at && (
@@ -395,7 +477,7 @@ const styles = StyleSheet.create({
   callBtn: { backgroundColor: '#fff', borderRadius: 14, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   callBtnText: { fontSize: 15, fontWeight: '700', color: GRAY_700 },
 
-  // Modal annulation
+  // Modal annulation + notation
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalBox: { backgroundColor: '#fff', borderRadius: 24, padding: 28, alignItems: 'center', gap: 12, width: '100%' },
   modalEmoji: { fontSize: 56 },
@@ -406,4 +488,10 @@ const styles = StyleSheet.create({
   modalBtnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   modalBtnSecondary: { backgroundColor: '#F3F4F6' },
   modalBtnSecondaryText: { color: GRAY_700, fontWeight: '700', fontSize: 15 },
+
+  // Étoiles notation
+  starsRow: { flexDirection: 'row', gap: 8, marginVertical: 4 },
+  starBtn: { padding: 4 },
+  starText: { fontSize: 36, color: '#D1D5DB' },
+  starActive: { color: '#F59E0B' },
 });

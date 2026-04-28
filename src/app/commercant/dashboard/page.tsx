@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -81,6 +82,8 @@ export default function MerchantDashboard() {
   const [priceInput, setPriceInput] = useState("");
   const [savingProduct, setSavingProduct] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Edit info (feature 4)
   const [editingInfo, setEditingInfo] = useState(false);
@@ -236,11 +239,12 @@ export default function MerchantDashboard() {
   async function uploadPhoto(file: File): Promise<string | null> {
     if (!merchant) return null;
     setUploadingPhoto(true);
+    setUploadError(null);
     const ext = file.name.split(".").pop();
     const path = `${merchant.id}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
     setUploadingPhoto(false);
-    if (error) { alert("Erreur upload photo"); return null; }
+    if (error) { setUploadError("Erreur upload photo : " + error.message); return null; }
     const { data } = supabase.storage.from("product-images").getPublicUrl(path);
     return data.publicUrl;
   }
@@ -276,10 +280,10 @@ export default function MerchantDashboard() {
   }
 
   async function deleteProduct(id: string) {
-    if (!confirm("Supprimer ce produit ?")) return;
     const { error } = await supabase.from("merchant_products").delete().eq("id", id);
-    if (error) { alert("Erreur suppression : " + error.message); return; }
+    if (error) { setUploadError("Erreur suppression : " + error.message); setConfirmDeleteId(null); return; }
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    setConfirmDeleteId(null);
   }
 
   async function toggleAvailable(p: Product) {
@@ -669,7 +673,7 @@ export default function MerchantDashboard() {
                   {productsByCategory[cat].map((p) => (
                     <div key={p.id} className="bg-white rounded-xl p-4 border border-gray-100 flex items-center gap-4">
                       {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-gray-100" />
+                        <Image src={p.image_url} alt={p.name} width={64} height={64} className="rounded-xl object-cover flex-shrink-0 border border-gray-100" />
                       ) : (
                         <div className="w-16 h-16 rounded-xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0">🍽️</div>
                       )}
@@ -694,7 +698,15 @@ export default function MerchantDashboard() {
                           ⭐
                         </button>
                         <button onClick={() => { setEditingProduct(p); setPriceInput(String(p.price ?? "")); }} className="bg-orange-100 text-orange-600 hover:bg-orange-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Modifier</button>
-                        <button onClick={() => deleteProduct(p.id)} className="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Suppr.</button>
+                        {confirmDeleteId === p.id ? (
+                          <div className="flex gap-1 items-center">
+                            <span className="text-xs text-gray-500">Confirmer ?</span>
+                            <button onClick={() => deleteProduct(p.id)} className="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-semibold transition">Oui</button>
+                            <button onClick={() => setConfirmDeleteId(null)} className="bg-gray-100 text-gray-600 px-2 py-1 rounded-lg text-xs font-semibold transition">Non</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmDeleteId(p.id)} className="bg-red-50 text-red-500 hover:bg-red-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Suppr.</button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -888,7 +900,7 @@ export default function MerchantDashboard() {
               <label className="block text-sm font-semibold text-gray-700 mb-2">Photo du produit</label>
               {editingProduct.image_url && (
                 <div className="relative mb-2 inline-block">
-                  <img src={editingProduct.image_url} alt="aperçu" className="w-24 h-24 rounded-xl object-cover border border-gray-200" />
+                  <Image src={editingProduct.image_url} alt="aperçu" width={96} height={96} className="rounded-xl object-cover border border-gray-200" />
                   <button
                     onClick={() => setEditingProduct((p) => ({ ...p, image_url: undefined }))}
                     className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
@@ -915,8 +927,11 @@ export default function MerchantDashboard() {
               <p className="text-xs text-gray-400 mt-1">JPG, PNG, WebP · max 5 Mo recommandé</p>
             </div>
 
+            {uploadError && (
+              <p className="text-sm text-red-500 bg-red-50 rounded-xl px-3 py-2">{uploadError}</p>
+            )}
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setEditingProduct(null)} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Annuler</button>
+              <button onClick={() => { setEditingProduct(null); setUploadError(null); }} className="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl">Annuler</button>
               <button onClick={saveProduct} disabled={savingProduct || uploadingPhoto || !editingProduct.name}
                 className="flex-1 bg-orange-500 text-white font-bold py-3 rounded-xl hover:bg-orange-600 disabled:opacity-50">
                 {savingProduct ? "Enregistrement…" : "Enregistrer"}

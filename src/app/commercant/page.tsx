@@ -243,9 +243,12 @@ export default function CommercantPage() {
                 placeholder="Lun-Sam 11h-14h / 18h-23h, Dim fermé" />
 
               <Field label="Numéro SIRET *" value={siret} onChange={setSiret} placeholder="362 521 879 00034" />
+              {siret && siret.replace(/\s/g, "").length !== 14 && (
+                <p className="text-xs text-red-500">Le SIRET doit contenir exactement 14 chiffres.</p>
+              )}
 
               <button onClick={() => setStep(2 as any)}
-                disabled={!name || !category || !address || !email || !siret || password.length < 8}
+                disabled={!name || !category || !address || !email || siret.replace(/\s/g, "").length !== 14 || password.length < 8}
                 className="w-full bg-orange-500 text-white font-bold py-4 rounded-xl hover:bg-orange-600 disabled:opacity-40 transition">
                 Continuer →
               </button>

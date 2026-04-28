@@ -35,12 +35,6 @@ const REVIEWS = [
     text: "Super expérience ! Problème informatique réglé rapidement, avec beaucoup de patience et de gentillesse. Je me suis sentie en confiance du début à la fin. Je recommande à 100 % Il est chouette.",
     date: "Février 2026",
   },
-  {
-    name: "Test Num",
-    rating: 5,
-    text: "Service de livraison de courses impeccable ! Je n'avais pas le temps de faire mes courses et Il est chouette s'est occupé de tout. Tout a été respecté à la lettre, les produits étaient conformes, bien choisis et livrés rapidement. Un vrai gain de temps et beaucoup moins de stress au quotidien. Je recommande sans hésiter !",
-    date: "Mars 2026",
-  },
 ];
 
 const SITUATIONS = [
@@ -208,9 +202,6 @@ export default function HomeClient() {
               <div className="absolute left-[32px] bottom-[10px] max-w-[340px] bg-[#fff4de] text-slate-900 rounded-3xl shadow-md px-4 py-3 border border-orange-200">
                 <p className="text-xs font-semibold">Il est chouette</p>
                 <p className="mt-1 text-[11px] text-slate-600 leading-snug">{situation.answer}</p>
-                <p className="mt-2 text-[10px] text-slate-400">
-                  Nouvelle situation affichée toutes les 20 secondes.
-                </p>
               </div>
             </div>
 
@@ -470,8 +461,8 @@ export default function HomeClient() {
             </p>
             <div className="flex items-center gap-3 pt-2">
               <span className="text-xs text-slate-400">Suivre Il est chouette :</span>
-              <a href="#" aria-label="Instagram" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors">IG</a>
-              <a href="#" aria-label="Facebook" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors">f</a>
+              <a href="https://www.instagram.com/ilestchouette" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors">IG</a>
+              <a href="https://www.facebook.com/ilestchouette" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors">f</a>
               <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp" className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-[13px] hover:bg-orange-500 cursor-pointer transition-colors" onClick={() => trackEvent("click_whatsapp_footer")}>WA</a>
             </div>
           </div>

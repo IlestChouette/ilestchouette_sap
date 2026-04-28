@@ -62,7 +62,7 @@ export default function CommanderScreen() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // true dès le départ → indicateur visible immédiatement
   const [pendingAction, setPendingAction] = useState<OrderAction | null>(null);
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState(false);
@@ -424,13 +424,18 @@ export default function CommanderScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: BG }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-      keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
 
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          accessibilityLabel="Retour"
+          accessibilityRole="button"
+        >
           <Text style={styles.backBtnText}>←</Text>
         </Pressable>
         <View style={{ flex: 1 }}>
@@ -466,7 +471,10 @@ export default function CommanderScreen() {
           messages.length === 0 && !loading ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>🤝</Text>
-              <Text style={styles.emptyText}>Connexion à l'assistant...</Text>
+              <Text style={styles.emptyTitle}>
+                {userName ? `Bonjour ${userName} !` : 'Bonjour !'}
+              </Text>
+              <Text style={styles.emptyText}>Que puis-je faire pour vous aujourd'hui ?</Text>
             </View>
           ) : null
         }
@@ -564,7 +572,13 @@ export default function CommanderScreen() {
                       </Text>
                     </View>
                   )}
-                  <Pressable style={styles.confirmBtn} onPress={handleConfirmOrder} disabled={placing}>
+                  <Pressable
+                    style={styles.confirmBtn}
+                    onPress={handleConfirmOrder}
+                    disabled={placing}
+                    accessibilityLabel={hasOnline ? `Payer ${grandTotal.toFixed(2)} euros` : 'Confirmer la commande'}
+                    accessibilityRole="button"
+                  >
                     {placing
                       ? <ActivityIndicator color="#fff" />
                       : <Text style={styles.confirmBtnText}>
@@ -600,8 +614,10 @@ export default function CommanderScreen() {
             style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
             onPress={sendMessage}
             disabled={!input.trim() || loading}
+            accessibilityLabel="Envoyer le message"
+            accessibilityRole="button"
           >
-            <Text style={styles.sendBtnText}>➤</Text>
+            <Text style={styles.sendBtnText}>↑</Text>
           </Pressable>
         </View>
       )}
@@ -624,12 +640,12 @@ const styles = StyleSheet.create({
     paddingTop: 56, paddingBottom: 16, paddingHorizontal: 20, gap: 12,
   },
   backBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center',
   },
   backBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#fff' },
-  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
   onlineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4ADE80' },
 
   chatContainer: { padding: 16, paddingBottom: 24, gap: 10 },
@@ -653,9 +669,10 @@ const styles = StyleSheet.create({
   bubbleText: { fontSize: 14, color: '#1F2937', lineHeight: 21 },
   bubbleTextUser: { color: '#fff' },
 
-  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: 14, color: GRAY_500 },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyEmoji: { fontSize: 52 },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginTop: 4 },
+  emptyText: { fontSize: 14, color: GRAY_500, textAlign: 'center', paddingHorizontal: 24 },
 
   confirmCard: {
     backgroundColor: '#fff', borderRadius: 20, margin: 8, padding: 20,
@@ -693,8 +710,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 12,
   },
   confirmBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  cancelBtn: { alignItems: 'center', marginTop: 8, paddingVertical: 6 },
-  cancelBtnText: { color: GRAY_500, fontSize: 13 },
+  cancelBtn: {
+    alignItems: 'center', marginTop: 8, paddingVertical: 12,
+    borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12,
+  },
+  cancelBtnText: { color: '#374151', fontSize: 14, fontWeight: '600' },
   devisRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   devisInput: {
     flex: 1, borderWidth: 1, borderColor: ORANGE, borderRadius: 8,
@@ -715,9 +735,10 @@ const styles = StyleSheet.create({
   sendBtn: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: ORANGE, alignItems: 'center', justifyContent: 'center',
+    shadowColor: ORANGE, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 4, elevation: 3,
   },
-  sendBtnDisabled: { opacity: 0.4 },
-  sendBtnText: { color: '#fff', fontSize: 18 },
+  sendBtnDisabled: { opacity: 0.35, shadowOpacity: 0 },
+  sendBtnText: { color: '#fff', fontSize: 20, fontWeight: '800', lineHeight: 22 },
 
   successScreen: {
     flex: 1, backgroundColor: BG, justifyContent: 'center',

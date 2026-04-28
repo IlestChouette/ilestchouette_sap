@@ -12,7 +12,6 @@ type ServiceDef = {
   type: "flat" | "hour";
 };
 
-console.log("VERSION OPÉRATEUR 15-11-2025 + planning pro + heures");
 
 const SERVICES: ServiceDef[] = [
   { id: "supermarket", label: "Courses supermarché (8€)", base: 8, type: "flat" },
@@ -393,11 +392,13 @@ export default function OperatorDashboard() {
     }
 
     if (status === "approved") {
-      const res = await fetch("/api/couriers/create", {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token ?? "";
+      const res = await fetch("/api/operateur/create-courier", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-operator-key": process.env.NEXT_PUBLIC_OPERATOR_API_KEY ?? "",
+          "Authorization": `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           email: s.email,
@@ -618,14 +619,11 @@ export default function OperatorDashboard() {
   }
 
   async function loadOrders(customerId: string) {
-    console.log("▶️ loadOrders pour customer", customerId);
     const { data, error } = await supabase
       .from("orders")
       .select("*")
       .eq("customer_id", customerId)
       .order("created_at", { ascending: false });
-
-    console.log("⬅️ résultat loadOrders :", { data, error });
 
     if (error) {
       console.warn(error);
@@ -926,13 +924,6 @@ export default function OperatorDashboard() {
    * 3. CRÉATION DES COMMANDES + ASSIGNATION COURSIER
    * ========================================================== */
   async function createOrders() {
-    console.log(">>> createOrders() appelée", {
-      customer,
-      dropoff,
-      lines,
-      selectedCourierId,
-      scheduledAt,
-    });
 
     if (!customer) {
       setInfo("Sélectionne/crée d’abord un client.");
@@ -945,6 +936,8 @@ export default function OperatorDashboard() {
 
     const scheduled_at = scheduledAt ? new Date(scheduledAt).toISOString() : null;
     const nowIso = new Date().toISOString();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token ?? "";
 
     const totalKm = lines.reduce((acc, l) => {
       const svc = getService(l.serviceType);
@@ -1059,7 +1052,10 @@ export default function OperatorDashboard() {
     if (selectedCourierId && insertedOrder) {
       const res = await fetch("/api/operateur/assign", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           order_id: insertedOrder.id,
           courier_email: selectedCourierId,

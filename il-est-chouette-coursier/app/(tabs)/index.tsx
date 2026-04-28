@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  LayoutAnimation,
   Linking,
   Platform,
   Pressable,
@@ -12,8 +13,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  UIManager,
   View,
 } from 'react-native';
+
+// Active LayoutAnimation sur Android
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
 import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SignatureCanvas from 'react-native-signature-canvas';
@@ -215,12 +222,7 @@ function MissionCard({
                 <View style={styles.callBadge}><Text style={styles.callBadgeText}>Appeler</Text></View>
               </Pressable>
             ) : null}
-            {order.client_email ? (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoIcon}>📧</Text>
-                <Text style={styles.infoText}>{order.client_email}</Text>
-              </View>
-            ) : null}
+            {/* client_email intentionnellement non affiché — RGPD */}
             {order.payment_method ? (
               <View style={styles.infoRow}>
                 <Text style={styles.infoIcon}>💰</Text>
@@ -388,7 +390,11 @@ function FinishModal({
   const [realAmount, setRealAmount] = useState('');
   const [code, setCode] = useState('');
   const [payment, setPayment] = useState<'cash' | 'card' | 'to_pay' | 'online' | ''>('');
-  const [wantsInvoice, setWantsInvoice] = useState<'yes' | 'no' | ''>('');
+  // Pré-rempli depuis la préférence du client si disponible
+  const invoicePreset = order?.wants_invoice !== null && order?.wants_invoice !== undefined
+    ? (order.wants_invoice ? 'yes' : 'no') as 'yes' | 'no'
+    : null;
+  const [wantsInvoice, setWantsInvoice] = useState<'yes' | 'no' | ''>(invoicePreset ?? '');
   const [, setSignature] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -711,28 +717,40 @@ function FinishModal({
             ))}
           </View>
 
-          <Text style={styles.label}>Le client souhaite une facture ?</Text>
-          <View style={styles.paymentRow}>
-            <Pressable
-              style={[styles.paymentBtn, wantsInvoice === 'yes' && styles.paymentBtnActive]}
-              onPress={() => setWantsInvoice('yes')}
-            >
-              <Text style={[styles.paymentBtnText, wantsInvoice === 'yes' && styles.paymentBtnTextActive]}>
-                ✅ Oui
+          {invoicePreset !== null ? (
+            /* Préférence déjà définie par le client — lecture seule */
+            <View style={styles.invoicePreset}>
+              <Text style={styles.invoicePresetLabel}>🧾 Facture demandée par le client</Text>
+              <Text style={styles.invoicePresetValue}>
+                {invoicePreset === 'yes' ? '✅ Oui — s\'ouvrira après confirmation' : '❌ Non'}
               </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.paymentBtn, wantsInvoice === 'no' && styles.paymentBtnActive]}
-              onPress={() => setWantsInvoice('no')}
-            >
-              <Text style={[styles.paymentBtnText, wantsInvoice === 'no' && styles.paymentBtnTextActive]}>
-                ❌ Non
-              </Text>
-            </Pressable>
-          </View>
-
-          {wantsInvoice === 'yes' && (
-            <Text style={styles.invoiceHint}>La facture s'ouvrira dans le navigateur après confirmation.</Text>
+            </View>
+          ) : (
+            /* Client n'a pas précisé — demander au coursier */
+            <>
+              <Text style={styles.label}>Le client souhaite une facture ?</Text>
+              <View style={styles.paymentRow}>
+                <Pressable
+                  style={[styles.paymentBtn, wantsInvoice === 'yes' && styles.paymentBtnActive]}
+                  onPress={() => setWantsInvoice('yes')}
+                >
+                  <Text style={[styles.paymentBtnText, wantsInvoice === 'yes' && styles.paymentBtnTextActive]}>
+                    ✅ Oui
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.paymentBtn, wantsInvoice === 'no' && styles.paymentBtnActive]}
+                  onPress={() => setWantsInvoice('no')}
+                >
+                  <Text style={[styles.paymentBtnText, wantsInvoice === 'no' && styles.paymentBtnTextActive]}>
+                    ❌ Non
+                  </Text>
+                </Pressable>
+              </View>
+              {wantsInvoice === 'yes' && (
+                <Text style={styles.invoiceHint}>La facture s'ouvrira dans le navigateur après confirmation.</Text>
+              )}
+            </>
           )}
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -877,6 +895,8 @@ export default function DashboardScreen() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const [courierName, setCourierName] = useState('');
+  const [todayEarnings, setTodayEarnings] = useState(0);
 
   // Charger les IDs passés depuis AsyncStorage au démarrage
   useEffect(() => {
@@ -949,13 +969,15 @@ export default function DashboardScreen() {
     courierEmailRef.current = userEmail;
     setCourierEmail(userEmail);
 
-    // Vérifier si le coursier est bloqué
+    // Vérifier si le coursier est bloqué + récupérer son prénom
     const { data: courierData } = await supabase
       .from('couriers')
-      .select('blocked')
+      .select('blocked, name')
       .eq('email', userEmail)
       .single();
     setIsBlocked(!!courierData?.blocked);
+    if (courierData?.name) setCourierName(courierData.name.split(' ')[0]);
+    else if (userEmail) setCourierName(userEmail.split('@')[0]);
 
     // Mes missions + commandes actives en parallèle
     const [myAssignmentsRes, activeAssignmentsRes] = await Promise.all([
@@ -976,7 +998,31 @@ export default function DashboardScreen() {
     } else {
       setLoadError('');
     }
-    if (myAssignmentsRes.data) setAssignments(myAssignmentsRes.data as unknown as Assignment[]);
+    if (myAssignmentsRes.data) {
+      const list = myAssignmentsRes.data as unknown as Assignment[];
+      setAssignments(list);
+
+      // Total gagné aujourd'hui (missions terminées depuis minuit)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayDone = list.filter((a) =>
+        a.status === 'terminee' &&
+        a.assigned_at &&
+        new Date(a.assigned_at) >= todayStart
+      );
+      // Aussi chercher dans les missions terminées du jour
+      const { data: doneTodayData } = await supabase
+        .from('assignments')
+        .select('order:orders(price_total, price_items)')
+        .eq('courier_email', userEmail)
+        .eq('status', 'terminee')
+        .gte('assigned_at', todayStart.toISOString());
+      const earned = (doneTodayData ?? []).reduce((sum: number, a: any) => {
+        const total = (a.order?.price_total ?? 0) - (a.order?.price_items ?? 0);
+        return sum + total * 0.6;
+      }, 0);
+      setTodayEarnings(earned);
+    }
 
     const takenOrderIds = (activeAssignmentsRes.data ?? []).map((a: any) => a.order_id);
 
@@ -993,6 +1039,7 @@ export default function DashboardScreen() {
     const { data: available } = await query;
     setPendingOrders((available ?? []) as PendingOrder[]);
 
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setLoading(false);
     setRefreshing(false);
   }
@@ -1141,9 +1188,34 @@ export default function DashboardScreen() {
     <View style={{ flex: 1, backgroundColor: '#F0F8FF' }}>
       {/* Header */}
       <View style={[styles.screenHeader, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.screenTitle}>Mes missions</Text>
-        <Text style={styles.screenSubtitle}>{assignments.length} en cours</Text>
+        <View style={{ flex: 1 }}>
+          {courierName ? (
+            <Text style={styles.screenGreeting}>Bonjour {courierName} 👋</Text>
+          ) : null}
+          <Text style={styles.screenTitle}>Mes missions</Text>
+          <Text style={styles.screenSubtitle}>{assignments.length} en cours</Text>
+        </View>
+        {todayEarnings > 0 && (
+          <View style={styles.earningsChip}>
+            <Text style={styles.earningsChipLabel}>Aujourd'hui</Text>
+            <Text style={styles.earningsChipValue}>{todayEarnings.toFixed(2)} €</Text>
+          </View>
+        )}
       </View>
+
+      {/* Bannière compte bloqué */}
+      {isBlocked && (
+        <View style={styles.blockedBanner}>
+          <Text style={styles.blockedTitle}>🔒 Compte suspendu</Text>
+          <Text style={styles.blockedText}>
+            Votre accès aux missions est temporairement désactivé.{'\n'}
+            Contactez l'équipe : <Text style={styles.blockedPhone}>06 95 42 73 12</Text>
+          </Text>
+          <Pressable onPress={() => Linking.openURL('tel:0695427312')} style={styles.blockedBtn}>
+            <Text style={styles.blockedBtnText}>📞 Appeler maintenant</Text>
+          </Pressable>
+        </View>
+      )}
 
       {!isBlocked && loadError ? (
         <View style={styles.errorBanner}>
@@ -1206,9 +1278,9 @@ export default function DashboardScreen() {
         {/* Mes missions en cours */}
         {assignments.length === 0 && pendingOrders.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🎉</Text>
-            <Text style={styles.emptyTitle}>Pas de mission en cours</Text>
-            <Text style={styles.emptyText}>Les nouvelles commandes apparaîtront ici automatiquement.</Text>
+            <Text style={styles.emptyIcon}>🛵</Text>
+            <Text style={styles.emptyTitle}>En attente de missions</Text>
+            <Text style={styles.emptyText}>Les nouvelles commandes apparaîtront ici automatiquement. Vous serez alerté par son et notification.</Text>
           </View>
         ) : assignments.length > 0 ? (
           <>
@@ -1291,9 +1363,59 @@ const styles = StyleSheet.create({
     backgroundColor: BLUE,
     paddingBottom: 20,
     paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
+  screenGreeting: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '600', marginBottom: 2 },
   screenTitle: { fontSize: 24, fontWeight: '700', color: '#fff' },
   screenSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+
+  // Chip gains du jour
+  earningsChip: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  earningsChipLabel: { fontSize: 10, color: 'rgba(255,255,255,0.8)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  earningsChipValue: { fontSize: 18, fontWeight: '800', color: '#fff', marginTop: 2 },
+
+  // Bannière compte bloqué
+  blockedBanner: {
+    backgroundColor: '#FEE2E2',
+    borderBottomWidth: 2,
+    borderBottomColor: '#FCA5A5',
+    padding: 20,
+    gap: 8,
+  },
+  blockedTitle: { fontSize: 16, fontWeight: '800', color: '#7F1D1D' },
+  blockedText: { fontSize: 13, color: '#B91C1C', lineHeight: 20 },
+  blockedPhone: { fontWeight: '800', textDecorationLine: 'underline' },
+  blockedBtn: {
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  blockedBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // wantsInvoice pré-rempli
+  invoicePreset: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    marginTop: 12,
+    gap: 4,
+  },
+  invoicePresetLabel: { fontSize: 12, color: '#166534', fontWeight: '600' },
+  invoicePresetValue: { fontSize: 14, color: '#15803D', fontWeight: '700' },
   list: { padding: 16, gap: 12 },
 
   // Carte

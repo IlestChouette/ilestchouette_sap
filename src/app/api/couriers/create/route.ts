@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../_lib/supabaseAdmin";
 import { Resend } from "resend";
+import { randomBytes } from "crypto";
 
 // === CONFIG RESEND ===
 const resendApiKey = process.env.RESEND_API_KEY;
@@ -36,10 +37,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1) Générer un mot de passe provisoire
-    const password =
-      Math.random().toString(36).slice(2, 6) +
-      Math.random().toString(36).slice(2, 6);
+    // 1) Générer un mot de passe provisoire cryptographiquement sûr
+    const password = randomBytes(6).toString("base64url").slice(0, 10);
 
     // 2) Créer l'utilisateur auth Supabase
     const { data: userData, error: authErr } =

@@ -301,6 +301,7 @@ export default function CourierPage() {
   const [pwdMsg, setPwdMsg] = useState<string | null>(null);
   const [pwdErr, setPwdErr] = useState<string | null>(null);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [tourInfo, setTourInfo] = useState<string | null>(null);
 
   /* ---- Google & temps de trajet ---- */
   const [googleReady, setGoogleReady] = useState(false);
@@ -992,9 +993,8 @@ export default function CourierPage() {
               {totalBrutGagne.toFixed(2)} €
             </p>
             <p className="text-xs text-gray-400 mt-2 leading-relaxed">
-              Montant que tu as généré sur tes livraisons (65 % du prix client).
-              La plateforme Il est chouette retient 35 % de frais de service
-              (dont 10 % pour la partie opérateur).
+              Montant que tu as généré sur tes livraisons (60 % du prix client).
+              La plateforme Il est chouette retient 40 % de frais de service.
             </p>
           </div>
         </section>
@@ -1088,6 +1088,16 @@ export default function CourierPage() {
           </div>
         </section>
 
+        {/* info tournée optimisée */}
+        {tourInfo && (
+          <section className="px-4 mt-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start justify-between gap-2">
+              <p className="text-xs text-blue-800 leading-relaxed">{tourInfo}</p>
+              <button onClick={() => setTourInfo(null)} className="text-blue-400 hover:text-blue-600 text-xs flex-shrink-0 cursor-pointer">✕</button>
+            </div>
+          </section>
+        )}
+
         {/* missions */}
         <section className="px-4 mt-4">
           <h2 className="text-sm font-semibold mb-2">Missions assignées</h2>
@@ -1174,10 +1184,7 @@ export default function CourierPage() {
                                     "Erreur update assignments.acceptee",
                                     error,
                                   );
-                                  alert(
-                                    "Erreur pour accepter la mission : " +
-                                      error.message,
-                                  );
+                                  setTourInfo("Erreur pour accepter la mission : " + error.message);
                                   return;
                                 }
 
@@ -1232,10 +1239,7 @@ export default function CourierPage() {
                                     "Erreur update assignments.refusee",
                                     error,
                                   );
-                                  alert(
-                                    "Erreur pour refuser la mission : " +
-                                      error.message,
-                                  );
+                                  setTourInfo("Erreur pour refuser la mission : " + error.message);
                                   return;
                                 }
 
@@ -1328,9 +1332,7 @@ export default function CourierPage() {
                                   .filter((addr) => addr.length > 0);
 
                                 if (pickups.length === 0) {
-                                  alert(
-                                    "Impossible de construire l'itinéraire : adresses pickup manquantes.",
-                                  );
+                                  setTourInfo("Impossible de construire l'itinéraire : adresses pickup manquantes.");
                                   return;
                                 }
 
@@ -1384,23 +1386,17 @@ export default function CourierPage() {
                                 const url =
                                   buildGoogleMapsMultiStopUrl(virtualOrder);
                                 if (!url) {
-                                  alert(
-                                    "Impossible de construire l'itinéraire : adresses manquantes.",
-                                  );
+                                  setTourInfo("Impossible de construire l'itinéraire : adresses manquantes.");
                                   return;
                                 }
 
-                                // petite info texte sur l'ordre optimisé
-                                try {
-                                  alert(
-                                    "Ordre de la tournée :\n" +
-                                      optimizedPickups.join(" → ") +
-                                      "\n→ " +
-                                      dropoff,
-                                  );
-                                } catch {
-                                  // si alert bloquée, ce n'est pas grave
-                                }
+                                // afficher l'ordre optimisé dans l'UI
+                                setTourInfo(
+                                  "Tournée : " +
+                                    optimizedPickups.join(" → ") +
+                                    " → " +
+                                    dropoff,
+                                );
 
                                 window.open(url, "_blank");
 

@@ -4,3 +4,11 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+node_modules/
+*.aab
+*.apk
+*.ipa
+.gradle/
+keystore.properties
+release.keystore
