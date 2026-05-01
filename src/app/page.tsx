@@ -7,9 +7,9 @@ import HomeClient from "./HomeClient";
 ═══════════════════════════════════════════════════════════ */
 export const metadata: Metadata = {
   title:
-    "Il est chouette · Coursier humain à Nice – Courses, pharmacie, voiturier et aide du quotidien",
+    "Il est chouette · Assistant personnel à Nice – Courses, pharmacie, voiturier et aide du quotidien",
   description:
-    "Il est chouette est un service de coursier humain à Nice : courses supermarché, médicaments, repas, achats du quotidien, accompagnement, voiturier, dépannage informatique et petits bricolages pour habitants, seniors et touristes.",
+    "Il est chouette est votre assistant personnel à Nice : courses supermarché, médicaments, repas, achats du quotidien, accompagnement, voiturier, dépannage informatique et petits bricolages pour habitants, seniors et touristes. Disponible 7j/7 sur WhatsApp.",
   keywords:
     "coursier Nice, livraison courses Nice, médicaments à domicile Nice, voiturier Nice, dépannage informatique Nice, bricolage Nice, service à la personne Nice, aide seniors Nice, conciergerie Nice, il est chouette, livraison repas Nice, accompagnement rendez-vous Nice",
   robots: { index: true, follow: true },
@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     title:
-      "Il est chouette · Coursier humain, voiturier et aide du quotidien à Nice",
+      "Il est chouette · Assistant personnel à Nice – Voiturier, courses et aide du quotidien",
     description:
-      "Service de coursier humain, voiturier et d'aide du quotidien à Nice : courses, pharmacie, repas, accompagnement, aide administrative, dépannage informatique et petits bricolages.",
+      "Votre assistant personnel à Nice : courses, pharmacie, repas, accompagnement, aide administrative, dépannage informatique et petits bricolages. Disponible 7j/7 sur WhatsApp.",
     url: "https://www.ilestchouette.fr/",
     siteName: "Il est chouette",
     locale: "fr_FR",

@@ -131,20 +131,25 @@ export default function HomeClient() {
         <div className="max-w-6xl mx-auto px-4 py-12 md:py-20 lg:py-24 grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-10 items-center">
           {/* Texte */}
           <div className="space-y-5">
-            <p className="text-xs tracking-[0.25em] uppercase">
-              NICE · COURSIER HUMAIN · SERVICE À LA PERSONNE
-            </p>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
+              </span>
+              <p className="text-xs tracking-[0.2em] uppercase text-orange-100/80">
+                Disponible maintenant · Nice · 7j/7
+              </p>
+            </div>
             <h1 className="text-2xl md:text-3xl lg:text-[2.2rem] font-bold leading-tight">
-              Nous sommes Il est chouette
-              <span className="block mt-2">
-                On facilite votre quotidien, d'une façon simple et rapide.
+              Votre assistant personnel à Nice
+              <span className="block mt-2 text-orange-100/90">
+                Courses, pharmacie, voiturier, bricolage — un seul appel suffit.
               </span>
             </h1>
 
             <p className="text-sm md:text-base text-orange-50/90 max-w-xl">
-              Un accompagnement chez le médecin, aller chercher ou envoyer un
-              colis, aller faire les courses, livraison de nourriture,
-              voiturier, bricolage et même dépannage informatique.
+              Intervention en moins d'1h · Habitants, seniors et touristes.
+              Pas d'appli à installer — juste un message WhatsApp ou un appel.
             </p>
 
             <div className="flex flex-wrap gap-3 pt-2">
@@ -152,30 +157,27 @@ export default function HomeClient() {
                 href={WHATSAPP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-full bg-slate-900 hover:bg-black text-sm md:text-base px-6 py-2.5 font-semibold shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 justify-center rounded-full bg-slate-900 hover:bg-black text-sm md:text-base px-6 py-2.5 font-semibold shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
                 onClick={() => trackEvent("click_whatsapp_hero")}
               >
-                Nous contacter
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.127 1.534 5.857L.057 23.998l6.305-1.654A11.954 11.954 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.882a9.858 9.858 0 01-5.03-1.378l-.36-.214-3.742.981 1-3.648-.235-.374A9.855 9.855 0 012.118 12C2.118 6.534 6.534 2.118 12 2.118S21.882 6.534 21.882 12 17.466 21.882 12 21.882z"/></svg>
+                Commander sur WhatsApp
               </a>
               <a
                 href="tel:+33695427312"
-                className="inline-flex items-center justify-center rounded-full bg-slate-900/90 hover:bg-slate-900 text-sm md:text-base px-6 py-2.5 font-semibold shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
+                className="inline-flex items-center justify-center rounded-full bg-slate-900/80 hover:bg-slate-900 text-sm md:text-base px-6 py-2.5 font-semibold shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
                 onClick={() => trackEvent("click_phone_hero")}
               >
-                06 95 42 73 12
+                📞 06 95 42 73 12
               </a>
-              <Link
-                href="/coursier"
-                className="inline-flex items-center justify-center rounded-full bg-white/95 hover:bg-white text-sm md:text-base px-6 py-2.5 font-semibold text-slate-900 shadow-md cursor-pointer transition-transform hover:-translate-y-0.5"
-                onClick={() => trackEvent("click_devenir_coursier_hero")}
-              >
-                Devenir coursier
-              </Link>
             </div>
 
-            <p className="text-xs md:text-sm text-orange-50/85 pt-1">
+            <p className="text-xs md:text-sm text-orange-50/70 pt-1">
               Service humain, local et bienveillant pour les habitants,
-              seniors et touristes à Nice.
+              seniors et touristes à Nice.{" "}
+              <Link href="/coursier" className="underline hover:text-white transition-colors" onClick={() => trackEvent("click_devenir_coursier_hero")}>
+                Devenir coursier →
+              </Link>
             </p>
           </div>
 
@@ -252,15 +254,53 @@ export default function HomeClient() {
         </div>
       </section>
 
+      {/* ══════════════════════ DIFFÉRENTIEL ══════════════════════ */}
+      <section className="bg-slate-900 text-white py-10 md:py-14">
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-xl md:text-2xl font-semibold text-center mb-2">
+            Pas une appli. Un vrai assistant personnel.
+          </h2>
+          <p className="text-sm text-slate-400 text-center mb-8 max-w-xl mx-auto">
+            Wecasa fait le ménage. TaskRabbit monte vos meubles. Il est chouette, c'est une autre chose : un contact humain unique pour tout ce que les plateformes ne font pas.
+          </p>
+          <div className="grid md:grid-cols-3 gap-5">
+            {[
+              {
+                icon: "👤",
+                title: "Humain & local",
+                desc: "Pas un algorithme. Une personne réelle qui connaît Nice, disponible sur WhatsApp en quelques secondes. Pas de compte à créer, pas d'appli.",
+              },
+              {
+                icon: "🔁",
+                title: "Tout-en-un",
+                desc: "Courses, médicaments, voiturier, IT, bricolage — un seul contact pour tout. Pas besoin de jongler entre cinq plateformes différentes.",
+              },
+              {
+                icon: "⚡",
+                title: "Disponible le jour même",
+                desc: "Intervention en moins d'1h pour la plupart des missions. 7j/7 de 8h à 22h, y compris week-ends et jours fériés.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="bg-slate-800 rounded-2xl p-6 text-center">
+                <div className="text-3xl mb-3">{item.icon}</div>
+                <h3 className="text-sm font-bold mb-2">{item.title}</h3>
+                <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ══════════════════════ AVIS CLIENTS ══════════════════════ */}
       <section className="bg-orange-50 border-y border-orange-100 py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-4">
           <div className="iec-reveal text-center mb-10">
-            <div className="flex items-center justify-center gap-1 mb-3">
-              {[...Array(5)].map((_, i) => <span key={i} className="text-orange-400 text-lg">★</span>)}
-              <span className="ml-2 text-sm font-bold text-slate-700">5/5 sur Google</span>
+            <div className="flex items-center justify-center gap-1 mb-2">
+              {[...Array(5)].map((_, i) => <span key={i} className="text-orange-400 text-2xl">★</span>)}
             </div>
-            <h2 className="text-xl md:text-2xl font-semibold">Ce que disent nos clients</h2>
+            <p className="text-3xl font-bold text-slate-900">5 / 5</p>
+            <p className="text-sm text-slate-500 mt-1">sur Google · Nice</p>
+            <h2 className="text-xl md:text-2xl font-semibold mt-4">Ce que disent nos clients</h2>
             <a
               href="https://g.page/r/ilestchouette/review"
               target="_blank"
@@ -333,6 +373,18 @@ export default function HomeClient() {
             <br />
             Exemple 2 : dépannage informatique à domicile = 65 € pour 1 heure.
           </p>
+
+          <div className="mt-6 max-w-3xl mx-auto bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4 flex gap-4 items-start">
+            <span className="text-2xl flex-shrink-0">💡</span>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Crédit d'impôt 50 % possible</p>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Certains services Il est chouette (accompagnement, aide administrative, bricolage, dépannage informatique)
+                peuvent ouvrir droit au crédit d'impôt services à la personne — soit la moitié du tarif remboursée.
+                Contactez-nous pour en savoir plus.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -490,6 +542,22 @@ export default function HomeClient() {
           </div>
         </div>
       </footer>
+
+      {/* ══════════════════════ STICKY WHATSAPP (mobile) ══════════════════════ */}
+      <a
+        href={WHATSAPP_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-3 rounded-full shadow-xl transition-transform hover:-translate-y-0.5 md:hidden"
+        onClick={() => trackEvent("click_whatsapp_sticky")}
+        aria-label="Commander sur WhatsApp"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white flex-shrink-0">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.127 1.534 5.857L.057 23.998l6.305-1.654A11.954 11.954 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.882a9.858 9.858 0 01-5.03-1.378l-.36-.214-3.742.981 1-3.648-.235-.374A9.855 9.855 0 012.118 12C2.118 6.534 6.534 2.118 12 2.118S21.882 6.534 21.882 12 17.466 21.882 12 21.882z"/>
+        </svg>
+        WhatsApp
+      </a>
 
       <style>{`
         /* ── Scroll reveal ── */
