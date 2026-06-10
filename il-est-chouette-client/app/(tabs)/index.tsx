@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -18,11 +18,8 @@ import { supabase } from '@/lib/supabase';
 import { SERVICES } from '@/lib/services';
 import type { Service } from '@/lib/types';
 import type { Order } from '@/lib/types';
-import { ORANGE, ORANGE_LIGHT, ORANGE_BORDER, GRAY_700, GRAY_500, BG } from '@/constants/theme';
+import { ORANGE, ORANGE_LIGHT, ORANGE_BORDER, GRAY_500, BG } from '@/constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-type MerchantProduct = { id: string; name: string; price: number; image_url?: string; is_featured?: boolean };
-type MerchantWithProducts = { id: string; name: string; category: string; address: string; products: MerchantProduct[] };
 
 // Active LayoutAnimation sur Android
 if (Platform.OS === 'android') {
@@ -33,9 +30,7 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
-  const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
-  const [merchants, setMerchants] = useState<MerchantWithProducts[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Rechargement à chaque fois que l'écran prend le focus (retour depuis suivi, etc.)
@@ -46,7 +41,6 @@ export default function HomeScreen() {
         const { data } = await supabase.auth.getSession();
         const user = data.session?.user;
         const email = user?.email ?? '';
-        setUserEmail(email);
 
         // Charge le prénom depuis le profil
         if (user?.id) {
@@ -63,32 +57,12 @@ export default function HomeScreen() {
         }
 
         if (email) await loadActiveOrder(email);
-        await loadMerchants();
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setLoading(false);
       }
       loadAll();
     }, [])
   );
-
-  async function loadMerchants() {
-    const { data: merchantList } = await supabase
-      .from('merchants')
-      .select('id, name, category, address')
-      .eq('status', 'active');
-    if (!merchantList?.length) return;
-
-    const { data: products } = await supabase
-      .from('merchant_products')
-      .select('id, merchant_id, name, price, image_url, is_featured')
-      .in('merchant_id', merchantList.map((m: any) => m.id))
-      .eq('available', true);
-
-    setMerchants(merchantList.map((m: any) => ({
-      ...m,
-      products: (products ?? []).filter((p: any) => p.merchant_id === m.id),
-    })));
-  }
 
   async function loadActiveOrder(email: string) {
     const { data } = await supabase
@@ -138,62 +112,6 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.activeBannerArrow}>{t('home.view_order')}</Text>
           </Pressable>
-        )}
-
-        {/* Section partenaires avec photos */}
-        {merchants.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Nos partenaires</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 12 }}
-            >
-              {merchants.map((m) => {
-                const featured = m.products.filter((p) => p.is_featured);
-                const shown = featured.length > 0 ? featured : m.products.slice(0, 4);
-                return (
-                  <Pressable
-                    key={m.id}
-                    style={styles.merchantCard}
-                    accessibilityLabel={`Commander chez ${m.name}`}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      AsyncStorage.setItem('pending_service', JSON.stringify({ id: 'food', label: m.name, merchant_id: m.id, merchant_name: m.name }));
-                      router.push('/commander');
-                    }}
-                  >
-                    <Text style={styles.merchantName}>{m.name}</Text>
-                    <Text style={styles.merchantCat}>{m.category}</Text>
-                    {shown.length > 0 && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 8 }}>
-                        {shown.map((p) => (
-                          <View key={p.id} style={styles.productThumb}>
-                            {p.image_url ? (
-                              <Image
-                                source={{ uri: p.image_url }}
-                                style={styles.productImg}
-                                accessibilityLabel={p.name}
-                              />
-                            ) : (
-                              <View style={[styles.productImg, styles.productImgPlaceholder]}>
-                                <Text style={{ fontSize: 20 }}>🍽️</Text>
-                              </View>
-                            )}
-                            <Text style={styles.productName} numberOfLines={1}>{p.name}</Text>
-                            <Text style={styles.productPrice}>{p.price.toFixed(2)} €</Text>
-                          </View>
-                        ))}
-                      </ScrollView>
-                    )}
-                    <View style={styles.orderBtn}>
-                      <Text style={styles.orderBtnText}>Commander →</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
         )}
 
         {/* Grille de services */}

@@ -12,3 +12,5 @@ node_modules/
 .gradle/
 keystore.properties
 release.keystore
+*.jks
+.claude-flow/

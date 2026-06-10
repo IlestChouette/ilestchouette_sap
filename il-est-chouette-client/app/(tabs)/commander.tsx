@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -72,6 +74,8 @@ export default function CommanderScreen() {
   const [savedAddresses, setSavedAddresses] = useState('');
   const [merchants, setMerchants] = useState<any[]>([]);
   const merchantsRef = useRef<any[]>([]);
+  const [activeMerchantId, setActiveMerchantId] = useState<string | null>(null);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
   const clientLocationRef = useRef<{ lat: number; lon: number } | null>(null);
 
   // Détecte si un nouveau service a été sélectionné depuis l'accueil.
@@ -137,7 +141,7 @@ export default function CommanderScreen() {
       if (merchantList && merchantList.length > 0) {
         const { data: allProducts } = await supabase
           .from('merchant_products')
-          .select('merchant_id, name, description, price, category, is_featured')
+          .select('merchant_id, name, description, price, category, is_featured, image_url')
           .in('merchant_id', merchantList.map((m: any) => m.id))
           .eq('available', true);
 
@@ -172,6 +176,7 @@ export default function CommanderScreen() {
           const svc = JSON.parse(pendingService);
           if (svc.merchant_name) {
             // Came from a merchant banner — jump straight to that merchant
+            if (svc.merchant_id) setActiveMerchantId(svc.merchant_id);
             initialMessages = [{ role: 'user', content: `Je voudrais commander chez ${svc.merchant_name}` }];
           } else {
             const serviceLabel = SERVICE_LABELS[svc.id] ?? svc.id;
@@ -428,6 +433,39 @@ export default function CommanderScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
 
+      {/* Modal photos du commerce */}
+      {(() => {
+        const merchant = merchants.find(m => m.id === activeMerchantId);
+        const photos = (merchant?.products ?? []).filter((p: any) => p.image_url);
+        return (
+          <Modal visible={showPhotoModal} animationType="slide" transparent onRequestClose={() => setShowPhotoModal(false)}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalBox}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{merchant?.name ?? 'Photos'}</Text>
+                  <Pressable onPress={() => setShowPhotoModal(false)} accessibilityLabel="Fermer">
+                    <Text style={styles.modalClose}>✕</Text>
+                  </Pressable>
+                </View>
+                {photos.length === 0 ? (
+                  <Text style={styles.modalEmpty}>Aucune photo disponible.</Text>
+                ) : (
+                  <ScrollView contentContainerStyle={styles.modalGrid}>
+                    {photos.map((p: any) => (
+                      <View key={p.name + p.price} style={styles.modalItem}>
+                        <Image source={{ uri: p.image_url }} style={styles.modalImg} resizeMode="cover" />
+                        <Text style={styles.modalItemName} numberOfLines={1}>{p.name}</Text>
+                        <Text style={styles.modalItemPrice}>{p.price.toFixed(2)} €</Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
+
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -442,6 +480,15 @@ export default function CommanderScreen() {
           <Text style={styles.headerTitle}>Il est chouette</Text>
           <Text style={styles.headerSub}>Assistant disponible</Text>
         </View>
+        {activeMerchantId && merchants.find(m => m.id === activeMerchantId)?.products?.some((p: any) => p.image_url) && (
+          <Pressable
+            onPress={() => setShowPhotoModal(true)}
+            style={styles.photoBtn}
+            accessibilityLabel="Voir les photos du commerce"
+          >
+            <Text style={styles.photoBtnText}>📷</Text>
+          </Pressable>
+        )}
         <View style={styles.onlineDot} />
       </View>
 
@@ -647,6 +694,20 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#fff' },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
   onlineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4ADE80' },
+  photoBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 6 },
+  photoBtnText: { fontSize: 18 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalBox: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  modalTitle: { fontSize: 17, fontWeight: '800', color: '#111827' },
+  modalClose: { fontSize: 18, color: '#6B7280', paddingHorizontal: 4 },
+  modalEmpty: { textAlign: 'center', color: '#9CA3AF', padding: 40 },
+  modalGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, gap: 12 },
+  modalItem: { width: '47%', gap: 4 },
+  modalImg: { width: '100%', height: 120, borderRadius: 12, backgroundColor: '#F3F4F6' },
+  modalItemName: { fontSize: 13, fontWeight: '600', color: '#111827' },
+  modalItemPrice: { fontSize: 13, fontWeight: '700', color: ORANGE },
 
   chatContainer: { padding: 16, paddingBottom: 24, gap: 10 },
 

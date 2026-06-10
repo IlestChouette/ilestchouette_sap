@@ -16,14 +16,27 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  const [ordRes, assRes, courRes, merRes, authUsersRes, oldCustRes] = await Promise.all([
-    supabaseAdmin.from("orders").select("*").order("created_at", { ascending: false }),
-    supabaseAdmin.from("assignments").select("*").order("assigned_at", { ascending: false }),
-    supabaseAdmin.from("couriers").select("*"),
-    supabaseAdmin.from("merchants").select("*").order("created_at", { ascending: false }),
-    supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
-    supabaseAdmin.from("customers").select("*"),
-  ]);
+  let ordRes, assRes, courRes, merRes, authUsersRes, oldCustRes;
+  try {
+    [ordRes, assRes, courRes, merRes, authUsersRes, oldCustRes] = await Promise.all([
+      supabaseAdmin.from("orders").select("*").order("created_at", { ascending: false }),
+      supabaseAdmin.from("assignments").select("*").order("assigned_at", { ascending: false }),
+      supabaseAdmin.from("couriers").select("*"),
+      supabaseAdmin.from("merchants").select("*").order("created_at", { ascending: false }),
+      supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
+      supabaseAdmin.from("customers").select("*"),
+    ]);
+  } catch (e) {
+    console.error("[admin/data] Supabase fetch error:", e);
+    return NextResponse.json({ error: "Erreur Supabase", detail: String(e) }, { status: 500 });
+  }
+
+  if (ordRes.error) console.error("[admin/data] orders error:", ordRes.error);
+  if (assRes.error) console.error("[admin/data] assignments error:", assRes.error);
+  if (courRes.error) console.error("[admin/data] couriers error:", courRes.error);
+  if (merRes.error) console.error("[admin/data] merchants error:", merRes.error);
+  if (oldCustRes.error) console.error("[admin/data] customers error:", oldCustRes.error);
+  if (authUsersRes.error) console.error("[admin/data] auth.users error:", authUsersRes.error);
 
   // Map email → nom depuis la table couriers (pour les coursiers sans metadata)
   const courierByEmail = new Map((courRes.data ?? []).map((c: any) => [

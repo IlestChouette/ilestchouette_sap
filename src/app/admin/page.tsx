@@ -223,6 +223,7 @@ export default function AdminPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [merchants, setMerchants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [expandedMerchant, setExpandedMerchant] = useState<string | null>(null);
   const [merchantProducts, setMerchantProducts] = useState<Record<string, any[]>>({});
 
@@ -275,6 +276,7 @@ export default function AdminPage() {
 
     async function load() {
       setLoading(true);
+      setDataError(null);
       try {
         const res = await fetch("/api/admin/data");
         if (res.ok) {
@@ -284,9 +286,13 @@ export default function AdminPage() {
           setCouriers(d.couriers ?? []);
           setCustomers(d.customers ?? []);
           setMerchants(d.merchants ?? []);
+        } else {
+          const body = await res.text().catch(() => "");
+          setDataError(`Erreur ${res.status} lors du chargement des données. ${body ? `Détail : ${body}` : ""}`);
         }
       } catch (e) {
         console.error("Erreur chargement admin:", e);
+        setDataError("Impossible de joindre le serveur. Vérifiez votre connexion.");
       }
       setLoading(false);
     }
@@ -589,6 +595,34 @@ export default function AdminPage() {
       {loading ? (
         <div className="flex items-center justify-center h-64 text-gray-400 text-lg">
           Chargement des données…
+        </div>
+      ) : dataError ? (
+        <div className="max-w-2xl mx-auto mt-16 bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
+          <p className="text-4xl mb-4">⚠️</p>
+          <h2 className="text-lg font-bold text-red-700 mb-2">Impossible de charger les données</h2>
+          <p className="text-sm text-red-600 mb-6">{dataError}</p>
+          <div className="text-xs text-gray-500 bg-white rounded-xl p-4 mb-6 text-left">
+            <p className="font-semibold mb-2">À vérifier :</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Variables d&apos;environnement sur Vercel : <code>ADMIN_COOKIE_TOKEN</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code></li>
+              <li>Le cookie de session a peut-être expiré — essayez de vous déconnecter et reconnecter</li>
+              <li>Logs Vercel → Functions pour voir l&apos;erreur précise</li>
+            </ul>
+          </div>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition"
+            >
+              Se reconnecter
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition"
+            >
+              Réessayer
+            </button>
+          </div>
         </div>
       ) : (
         <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
