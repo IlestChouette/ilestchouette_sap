@@ -100,8 +100,10 @@ export default function MissionsSpecifiquesPage() {
     };
     const { error } = editingId
       ? await supabase.from("edl_missions").update(payload).eq("id", editingId)
-      : await supabase.from("edl_missions").insert(payload);
+      // colonnes héritées de l'ancien module EDL, encore NOT NULL en base
+      : await supabase.from("edl_missions").insert({ ...payload, surface_m2: 0, meuble: false, fd_sup: 0, type_bien: "appartement" });
     if (error) { alert("Erreur : " + error.message); return; }
+    setSelectedMois(payload.date_mission.slice(0, 7));
     closeForm();
     loadMissions();
   }
