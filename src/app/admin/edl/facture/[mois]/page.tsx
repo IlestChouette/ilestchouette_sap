@@ -10,7 +10,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const MOIS_NOMS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const MODES_REGLEMENT = ["Virement bancaire", "Chèque", "Espèces", "Carte bancaire"];
+
+const MOIS_NOMS =["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
 type Mission = {
   id: string;
@@ -29,7 +31,8 @@ export default function DocumentMissionsPage() {
   const router = useRouter();
   const mois = (params?.mois as string) ?? "";
   const client = search.get("client") ?? "";
-  const isProforma = search.get("type") === "proforma";
+  const [isProforma, setIsProforma] = useState(search.get("type") === "proforma");
+  const [modes, setModes] = useState<string[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,6 +68,22 @@ export default function DocumentMissionsPage() {
   }, [mois, client, annee, moisNum]);
 
   const total = missions.reduce((s, m) => s + m.montant_ht, 0);
+
+  function toggleMode(m: string) {
+    setModes(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+  }
+
+  function validerEnFacture() {
+    if (!confirm("Valider la proforma et générer la facture ?")) return;
+    setIsProforma(false);
+    setNumero(n => n.replace(/^PRO-/, "FAC-"));
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    setEcheance(d.toISOString().slice(0, 10));
+    const q = new URLSearchParams(search.toString());
+    q.set("type", "facture");
+    window.history.replaceState(null, "", `?${q}`);
+  }
   const titre = isProforma ? "FACTURE PROFORMA" : "FACTURE";
 
   if (loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Chargement...</div>;
@@ -79,6 +98,11 @@ export default function DocumentMissionsPage() {
           {isProforma ? "Valable jusqu'au" : "Échéance"} : <input type="date" className="border rounded-lg px-2 py-1 text-sm ml-1" value={echeance} onChange={e => setEcheance(e.target.value)} />
         </label>
         <span className="text-xs text-gray-500">Les zones client / objet sont modifiables en cliquant dessus</span>
+        {isProforma && (
+          <button onClick={validerEnFacture} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-semibold text-sm">
+            ✅ Valider → Facture
+          </button>
+        )}
         <button onClick={() => window.print()} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-xl font-semibold text-sm">
           🖨️ Imprimer / PDF
         </button>
@@ -167,13 +191,28 @@ export default function DocumentMissionsPage() {
           </div>
         </div>
 
+        <div className="text-sm mb-4">
+          <p className="font-semibold mb-1">
+            Mode de règlement{isProforma ? " (cochez votre choix)" : ""} :
+          </p>
+          <div className="flex flex-wrap gap-4">
+            {MODES_REGLEMENT.filter(m => isProforma || modes.includes(m)).map(m => (
+              <label key={m} className="flex items-center gap-1 cursor-pointer print:cursor-auto">
+                <input type="checkbox" checked={modes.includes(m)} onChange={() => toggleMode(m)} disabled={!isProforma} />
+                {m}
+              </label>
+            ))}
+            {!isProforma && modes.length === 0 && <span className="text-gray-500">Virement bancaire</span>}
+          </div>
+        </div>
+
         <div className="text-xs text-gray-500 space-y-1 mb-6">
           <p className="italic">TVA non applicable, art. 293 B du CGI.</p>
           {isProforma ? (
             <p>Document proforma sans valeur comptable, ne constitue pas une facture. Offre valable jusqu&apos;au {new Date(echeance).toLocaleDateString("fr-FR")}.</p>
           ) : (
             <>
-              <p>Paiement par virement bancaire à réception, au plus tard le {new Date(echeance).toLocaleDateString("fr-FR")}. Pas d&apos;escompte pour paiement anticipé.</p>
+              <p>Paiement à réception, au plus tard le {new Date(echeance).toLocaleDateString("fr-FR")}. Pas d&apos;escompte pour paiement anticipé.</p>
               <p>En cas de retard de paiement : pénalités au taux de 3 fois le taux d&apos;intérêt légal (art. L441-10 du Code de commerce) et, pour les clients professionnels, indemnité forfaitaire pour frais de recouvrement de 40 € (art. D441-5).</p>
             </>
           )}
@@ -199,7 +238,7 @@ export default function DocumentMissionsPage() {
 
         <div className="border-t border-gray-200 pt-4 mt-8 text-xs text-gray-400 text-center">
           <p>Il est Chouette — SASU — SIREN 942 069 949 — 143 Promenade des Anglais, 06200 Nice</p>
-          {!isProforma && <p className="mt-1">Facture à régler par virement bancaire — IBAN disponible sur demande</p>}
+          {!isProforma && <p className="mt-1">IBAN disponible sur demande</p>}
         </div>
 
       </div>
