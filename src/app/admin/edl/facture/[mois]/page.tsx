@@ -89,7 +89,7 @@ export default function DocumentMissionsPage() {
   if (loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Chargement...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gray-100 py-8 px-4 print:min-h-0 print:bg-white print:p-0">
       <div className="max-w-3xl mx-auto mb-4 flex items-center justify-between gap-4 print:hidden">
         <label className="text-sm text-gray-600">
           N° : <input className="border rounded-lg px-2 py-1 text-sm ml-1" value={numero} onChange={e => setNumero(e.target.value)} />
@@ -108,9 +108,9 @@ export default function DocumentMissionsPage() {
         </button>
       </div>
 
-      <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-10 print:shadow-none print:rounded-none print:p-8">
+      <div className="max-w-3xl mx-auto bg-white shadow-lg rounded-2xl p-10 print:shadow-none print:rounded-none print:p-0 print:max-w-none">
 
-        <div className="flex justify-between mb-8">
+        <div className="flex justify-between mb-8 print:mb-3">
           <div>
             <Image src="/logo-chouette.png" alt="Il est Chouette" width={140} height={50} className="mb-2" />
             <p className="text-sm text-gray-600">SASU au capital de 5 000 €</p>
@@ -129,11 +129,11 @@ export default function DocumentMissionsPage() {
           </div>
         </div>
 
-        <div className="border-2 border-gray-900 rounded-lg text-center py-3 mb-6">
+        <div className="border-2 border-gray-900 rounded-lg text-center py-3 mb-6 print:py-1 print:mb-3">
           <h1 className="text-xl font-bold text-gray-900">{titre} N° {numero}</h1>
         </div>
 
-        <div className="flex justify-between mb-6 text-sm">
+        <div className="flex justify-between mb-6 text-sm print:mb-2">
           <div><span className="text-gray-500">Date d&apos;émission : </span><span className="font-semibold">{new Date().toLocaleDateString("fr-FR")}</span></div>
           <div><span className="text-gray-500">Période : </span><span className="font-semibold">{nomMois} {annee}</span></div>
           <div>
@@ -143,14 +143,14 @@ export default function DocumentMissionsPage() {
         </div>
         <p className="text-xs text-gray-500 mb-4">Nature de l&apos;opération : prestation de services</p>
 
-        <div className="mb-6 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-2 outline-none focus:bg-orange-50" contentEditable suppressContentEditableWarning>
+        <div className="mb-6 print:mb-2 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-2 outline-none focus:bg-orange-50" contentEditable suppressContentEditableWarning>
           <strong>Objet :</strong> Missions spécifiques — {nomMois} {annee}
         </div>
 
         {missions.length === 0 ? (
           <p className="text-center text-gray-400 py-8">Aucune mission pour cette période.</p>
         ) : (
-          <table className="w-full text-xs mb-6">
+          <table className="w-full text-xs mb-6 print:mb-2">
             <thead>
               <tr className="bg-gray-900 text-white">
                 <th className="text-left px-2 py-2 rounded-tl-lg whitespace-nowrap">Date</th>
@@ -206,7 +206,7 @@ export default function DocumentMissionsPage() {
           </div>
         </div>
 
-        <div className="text-xs text-gray-500 space-y-1 mb-6">
+        <div className="text-xs text-gray-500 space-y-1 mb-6 print:mb-2">
           <p className="italic">TVA non applicable, art. 293 B du CGI.</p>
           {isProforma ? (
             <p>Document proforma sans valeur comptable, ne constitue pas une facture. Offre valable jusqu&apos;au {new Date(echeance).toLocaleDateString("fr-FR")}.</p>
@@ -219,7 +219,7 @@ export default function DocumentMissionsPage() {
         </div>
 
         {isProforma && (
-          <div className="border-2 border-gray-300 rounded-lg p-4 mb-6 text-sm break-inside-avoid">
+          <div className="border-2 border-gray-300 rounded-lg p-4 mb-6 print:p-2 print:mb-2 text-sm break-inside-avoid">
             <p className="font-bold mb-1">BON POUR ACCORD</p>
             <p className="text-xs text-gray-500 mb-4">Date, nom, signature et cachet du client, précédés de la mention manuscrite « Bon pour accord »</p>
             <div className="grid grid-cols-2 gap-6 text-xs text-gray-600">
@@ -230,13 +230,13 @@ export default function DocumentMissionsPage() {
               </div>
               <div>
                 <p>Signature et cachet :</p>
-                <div className="border border-dashed border-gray-300 rounded h-24 mt-1" />
+                <div className="border border-dashed border-gray-300 rounded h-24 print:h-16 mt-1" />
               </div>
             </div>
           </div>
         )}
 
-        <div className="border-t border-gray-200 pt-4 mt-8 text-xs text-gray-400 text-center">
+        <div className="border-t border-gray-200 pt-4 mt-8 print:pt-2 print:mt-2 text-xs text-gray-400 text-center">
           <p>Il est Chouette — SASU — SIREN 942 069 949 — 143 Promenade des Anglais, 06200 Nice</p>
           {!isProforma && <p className="mt-1">IBAN disponible sur demande</p>}
         </div>
