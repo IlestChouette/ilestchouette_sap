@@ -36,6 +36,11 @@ export default function DocumentMissionsPage() {
   const [annee, moisNum] = mois.split("-");
   const nomMois = MOIS_NOMS[parseInt(moisNum) - 1] ?? "";
   const [numero, setNumero] = useState(`${isProforma ? "PRO" : "FAC"}-${mois.replace("-", "")}-001`);
+  const [echeance, setEcheance] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
 
   useEffect(() => {
     fetch("/api/admin/check")
@@ -70,6 +75,9 @@ export default function DocumentMissionsPage() {
         <label className="text-sm text-gray-600">
           N° : <input className="border rounded-lg px-2 py-1 text-sm ml-1" value={numero} onChange={e => setNumero(e.target.value)} />
         </label>
+        <label className="text-sm text-gray-600">
+          {isProforma ? "Valable jusqu'au" : "Échéance"} : <input type="date" className="border rounded-lg px-2 py-1 text-sm ml-1" value={echeance} onChange={e => setEcheance(e.target.value)} />
+        </label>
         <span className="text-xs text-gray-500">Les zones client / objet sont modifiables en cliquant dessus</span>
         <button onClick={() => window.print()} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-xl font-semibold text-sm">
           🖨️ Imprimer / PDF
@@ -82,7 +90,7 @@ export default function DocumentMissionsPage() {
           <div>
             <Image src="/logo-chouette.png" alt="Il est Chouette" width={140} height={50} className="mb-2" />
             <p className="text-sm text-gray-600">SASU au capital de 5 000 €</p>
-            <p className="text-sm text-gray-600">SIREN : 942 069 949</p>
+            <p className="text-sm text-gray-600">SIREN : 942 069 949 — RCS Nice</p>
             <p className="text-sm text-gray-600">143 Promenade des Anglais</p>
             <p className="text-sm text-gray-600">06200 Nice</p>
             <p className="text-sm text-gray-600">Tél : 06 95 42 73 12</p>
@@ -92,6 +100,7 @@ export default function DocumentMissionsPage() {
             <p className="text-lg font-bold text-gray-900">{client || "Nom du client"}</p>
             <p>Adresse</p>
             <p>Code postal, Ville</p>
+            <p>SIREN client (si professionnel)</p>
             <p>Email / Tél</p>
           </div>
         </div>
@@ -101,9 +110,14 @@ export default function DocumentMissionsPage() {
         </div>
 
         <div className="flex justify-between mb-6 text-sm">
-          <div><span className="text-gray-500">Date : </span><span className="font-semibold">{new Date().toLocaleDateString("fr-FR")}</span></div>
+          <div><span className="text-gray-500">Date d&apos;émission : </span><span className="font-semibold">{new Date().toLocaleDateString("fr-FR")}</span></div>
           <div><span className="text-gray-500">Période : </span><span className="font-semibold">{nomMois} {annee}</span></div>
+          <div>
+            <span className="text-gray-500">{isProforma ? "Valable jusqu'au : " : "Échéance : "}</span>
+            <span className="font-semibold">{new Date(echeance).toLocaleDateString("fr-FR")}</span>
+          </div>
         </div>
+        <p className="text-xs text-gray-500 mb-4">Nature de l&apos;opération : prestation de services</p>
 
         <div className="mb-6 text-sm text-gray-600 bg-gray-50 rounded-lg px-4 py-2 outline-none focus:bg-orange-50" contentEditable suppressContentEditableWarning>
           <strong>Objet :</strong> Missions spécifiques — {nomMois} {annee}
@@ -118,7 +132,9 @@ export default function DocumentMissionsPage() {
                 <th className="text-left px-2 py-2 rounded-tl-lg whitespace-nowrap">Date</th>
                 <th className="text-left px-2 py-2">Prestation</th>
                 <th className="text-left px-2 py-2 whitespace-nowrap">Réf.</th>
-                <th className="text-right px-2 py-2 rounded-tr-lg whitespace-nowrap">Montant</th>
+                <th className="text-right px-2 py-2 whitespace-nowrap">Qté</th>
+                <th className="text-right px-2 py-2 whitespace-nowrap">P.U. HT</th>
+                <th className="text-right px-2 py-2 rounded-tr-lg whitespace-nowrap">Total HT</th>
               </tr>
             </thead>
             <tbody>
@@ -131,6 +147,8 @@ export default function DocumentMissionsPage() {
                     {m.adresse && <div className="text-gray-400">{m.adresse}</div>}
                   </td>
                   <td className="px-2 py-2 text-gray-500 align-top">{m.numero_mission || "-"}</td>
+                  <td className="px-2 py-2 text-right align-top">1</td>
+                  <td className="px-2 py-2 whitespace-nowrap text-right align-top">{m.montant_ht.toFixed(2)} €</td>
                   <td className="px-2 py-2 font-semibold whitespace-nowrap text-right align-top">{m.montant_ht.toFixed(2)} €</td>
                 </tr>
               ))}
@@ -140,16 +158,43 @@ export default function DocumentMissionsPage() {
 
         <div className="flex justify-end mb-4">
           <div className="w-64 text-sm">
+            <div className="flex justify-between py-1 text-gray-600"><span>Total HT</span><span>{total.toFixed(2)} €</span></div>
+            <div className="flex justify-between py-1 text-gray-600"><span>TVA</span><span>0,00 €</span></div>
             <div className="flex justify-between py-2 text-base font-bold border-t border-gray-200">
-              <span>{isProforma ? "Total estimé" : "Total à payer"}</span>
+              <span>{isProforma ? "Total estimé" : "Net à payer"}</span>
               <span className="text-orange-600">{total.toFixed(2)} €</span>
             </div>
           </div>
         </div>
 
-        <p className="text-xs text-gray-400 italic mb-2">TVA non applicable — art. 293 B du CGI</p>
+        <div className="text-xs text-gray-500 space-y-1 mb-6">
+          <p className="italic">TVA non applicable, art. 293 B du CGI.</p>
+          {isProforma ? (
+            <p>Document proforma sans valeur comptable, ne constitue pas une facture. Offre valable jusqu&apos;au {new Date(echeance).toLocaleDateString("fr-FR")}.</p>
+          ) : (
+            <>
+              <p>Paiement par virement bancaire à réception, au plus tard le {new Date(echeance).toLocaleDateString("fr-FR")}. Pas d&apos;escompte pour paiement anticipé.</p>
+              <p>En cas de retard de paiement : pénalités au taux de 3 fois le taux d&apos;intérêt légal (art. L441-10 du Code de commerce) et, pour les clients professionnels, indemnité forfaitaire pour frais de recouvrement de 40 € (art. D441-5).</p>
+            </>
+          )}
+        </div>
+
         {isProforma && (
-          <p className="text-xs text-gray-500 mb-8">Document proforma sans valeur comptable — ne constitue pas une facture. Valable 30 jours.</p>
+          <div className="border-2 border-gray-300 rounded-lg p-4 mb-6 text-sm break-inside-avoid">
+            <p className="font-bold mb-1">BON POUR ACCORD</p>
+            <p className="text-xs text-gray-500 mb-4">Date, nom, signature et cachet du client, précédés de la mention manuscrite « Bon pour accord »</p>
+            <div className="grid grid-cols-2 gap-6 text-xs text-gray-600">
+              <div>
+                <p className="mb-6">Date : ____ / ____ / ________</p>
+                <p>Nom et qualité du signataire :</p>
+                <p className="border-b border-gray-300 h-6" />
+              </div>
+              <div>
+                <p>Signature et cachet :</p>
+                <div className="border border-dashed border-gray-300 rounded h-24 mt-1" />
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="border-t border-gray-200 pt-4 mt-8 text-xs text-gray-400 text-center">
