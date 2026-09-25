@@ -8,51 +8,15 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Grille tarifaire correcte
-function calculerTarifHT(typeBien: string, surfaceM2: number, meuble: boolean, fdSup: number): number {
-  let base = 0;
-  let supplMeuble = 0;
-
-  if (typeBien === "appartement") {
-    base = 40; // 30€ + 10€ visite virtuelle obligatoire
-    supplMeuble = meuble ? 10 : 0;
-  } else if (typeBien === "maison") {
-    base = 50; // 40€ + 10€ visite virtuelle obligatoire
-    supplMeuble = meuble ? 20 : 0;
-  } else {
-    // local_commercial — par surface
-    if (surfaceM2 <= 50) base = 40;
-    else if (surfaceM2 <= 100) base = 60;
-    else if (surfaceM2 <= 200) base = 80;
-    else if (surfaceM2 <= 300) base = 100;
-    else if (surfaceM2 <= 400) base = 120;
-    else if (surfaceM2 <= 500) base = 140;
-    else base = 0; // Sur devis
-  }
-
-  return base + supplMeuble + fdSup;
-}
-
-const TYPE_BIEN_LABELS: Record<string, string> = {
-  appartement: "Appartement",
-  maison: "Maison",
-  local_commercial: "Local commercial",
-};
-
-type EdlMission = {
+// Table edl_missions réutilisée : type_mission = type libre, gestionnaire = client, adresse = lieu, notes = description
+type Mission = {
   id: string;
-  created_at: string;
   date_mission: string;
   type_mission: string;
-  type_bien: string;
   adresse: string;
-  surface_m2: number;
-  meuble: boolean;
-  fd_sup: number;
   montant_ht: number;
   numero_mission: string | null;
   notes: string | null;
-  facture_mois: string | null;
   heure_debut: string | null;
   heure_fin: string | null;
   gestionnaire: string | null;
@@ -62,12 +26,9 @@ type EdlMission = {
 
 const emptyForm = {
   date_mission: "",
-  type_mission: "sortant",
-  type_bien: "appartement",
+  type_mission: "",
   adresse: "",
-  surface_m2: "",
-  meuble: false,
-  fd_sup: "0",
+  montant_ht: "",
   numero_mission: "",
   notes: "",
   heure_debut: "",
@@ -75,45 +36,38 @@ const emptyForm = {
   gestionnaire: "",
 };
 
-export default function EdlPage() {
-  const [authed, setAuthed] = useState(false);
-  const [missions, setMissions] = useState<EdlMission[]>([]);
+const input = "w-full border rounded-xl px-3 py-2 text-sm";
+const label = "text-xs font-semibold text-gray-600 block mb-1";
+
+export default function MissionsSpecifiquesPage() {
+  const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedMois, setSelectedMois] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
+  const [selectedMois, setSelectedMois] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedClient, setSelectedClient] = useState("");
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     fetch("/api/admin/check")
-      .then((r) => { if (r.ok) setAuthed(true); else window.location.href = "/admin"; })
+      .then((r) => { if (!r.ok) window.location.href = "/admin"; })
       .catch(() => { window.location.href = "/admin"; });
+    loadMissions();
   }, []);
-
-  useEffect(() => { loadMissions(); }, []);
 
   async function loadMissions() {
     setLoading(true);
-    const { data } = await supabase
-      .from("edl_missions")
-      .select("*")
-      .order("date_mission", { ascending: false });
+    const { data } = await supabase.from("edl_missions").select("*").order("date_mission", { ascending: false });
     setMissions(data || []);
     setLoading(false);
   }
 
-  function openEdit(m: EdlMission) {
+  function openEdit(m: Mission) {
     setForm({
       date_mission: m.date_mission,
-      type_mission: m.type_mission,
-      type_bien: m.type_bien || "appartement",
-      adresse: m.adresse,
-      surface_m2: String(m.surface_m2),
-      meuble: m.meuble,
-      fd_sup: String(m.fd_sup),
+      type_mission: m.type_mission || "",
+      adresse: m.adresse || "",
+      montant_ht: String(m.montant_ht),
       numero_mission: m.numero_mission || "",
       notes: m.notes || "",
       heure_debut: m.heure_debut || "",
@@ -125,43 +79,30 @@ export default function EdlPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function openNew() {
-    setForm(emptyForm);
+  function closeForm() {
+    setShowForm(false);
     setEditingId(null);
-    setShowForm(true);
+    setForm(emptyForm);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const surface = parseInt(form.surface_m2) || 0;
-    const fdSup = parseFloat(form.fd_sup) || 0;
-    const montantHt = calculerTarifHT(form.type_bien, surface, form.meuble, fdSup);
-
     const payload = {
       date_mission: form.date_mission,
-      type_mission: form.type_mission,
-      type_bien: form.type_bien,
-      adresse: form.adresse,
-      surface_m2: surface,
-      meuble: form.meuble,
-      fd_sup: fdSup,
-      montant_ht: montantHt,
+      type_mission: form.type_mission.trim(),
+      adresse: form.adresse.trim(),
+      montant_ht: parseFloat(form.montant_ht) || 0,
       numero_mission: form.numero_mission || null,
       notes: form.notes || null,
       heure_debut: form.heure_debut || null,
       heure_fin: form.heure_fin || null,
-      gestionnaire: form.gestionnaire || null,
+      gestionnaire: form.gestionnaire.trim() || null,
     };
-
-    if (editingId) {
-      await supabase.from("edl_missions").update(payload).eq("id", editingId);
-    } else {
-      await supabase.from("edl_missions").insert(payload);
-    }
-
-    setShowForm(false);
-    setEditingId(null);
-    setForm(emptyForm);
+    const { error } = editingId
+      ? await supabase.from("edl_missions").update(payload).eq("id", editingId)
+      : await supabase.from("edl_missions").insert(payload);
+    if (error) { alert("Erreur : " + error.message); return; }
+    closeForm();
     loadMissions();
   }
 
@@ -171,208 +112,140 @@ export default function EdlPage() {
     loadMissions();
   }
 
-  async function togglePaye(m: EdlMission) {
-    const newPaye = !m.paye;
+  async function togglePaye(m: Mission) {
+    const paye = !m.paye;
     await supabase.from("edl_missions").update({
-      paye: newPaye,
-      date_paiement: newPaye ? new Date().toISOString().split("T")[0] : null,
+      paye,
+      date_paiement: paye ? new Date().toISOString().split("T")[0] : null,
     }).eq("id", m.id);
     loadMissions();
   }
 
-  const missionsDuMois = missions.filter(m => m.date_mission?.startsWith(selectedMois));
-  const totalHT = missionsDuMois.reduce((s, m) => s + m.montant_ht, 0);
-  const totalPaye = missionsDuMois.filter(m => m.paye).reduce((s, m) => s + m.montant_ht, 0);
+  const clients = [...new Set(missions.map(m => m.gestionnaire).filter(Boolean))] as string[];
+  const selection = missions.filter(m =>
+    m.date_mission?.startsWith(selectedMois) && (!selectedClient || m.gestionnaire === selectedClient)
+  );
+  const totalHT = selection.reduce((s, m) => s + m.montant_ht, 0);
+  const totalPaye = selection.filter(m => m.paye).reduce((s, m) => s + m.montant_ht, 0);
 
-  const surface = parseInt(form.surface_m2) || 0;
-  const fdSup = parseFloat(form.fd_sup) || 0;
-  const tarifPreview = (form.type_bien !== "local_commercial" || surface > 0)
-    ? calculerTarifHT(form.type_bien, surface, form.meuble, fdSup)
-    : null;
-
-  const supplMeubleLabel = form.type_bien === "maison" ? "+20€" : "+10€";
+  function openDoc(type: "proforma" | "facture") {
+    const q = new URLSearchParams({ type });
+    if (selectedClient) q.set("client", selectedClient);
+    window.open(`/admin/edl/facture/${selectedMois}?${q}`, "_blank");
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">France EDL — États des lieux</h1>
-            <p className="text-sm text-gray-500 mt-1">Gestion des missions et facturation mensuelle</p>
+            <h1 className="text-2xl font-bold text-gray-900">Missions spécifiques</h1>
+            <p className="text-sm text-gray-500 mt-1">Tout type de mission — proforma et facturation</p>
           </div>
-          <button
-            onClick={openNew}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-semibold text-sm"
-          >
+          <button onClick={() => { closeForm(); setShowForm(true); }} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-semibold text-sm">
             + Ajouter une mission
           </button>
         </div>
 
-        {/* Formulaire */}
         {showForm && (
           <div className="bg-white rounded-2xl shadow p-6 mb-6">
             <h2 className="text-lg font-bold mb-4">{editingId ? "Modifier la mission" : "Nouvelle mission"}</h2>
             <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">N° Mission (France EDL)</label>
-                <input className="w-full border rounded-xl px-3 py-2 text-sm" value={form.numero_mission} onChange={e => setForm(f => ({...f, numero_mission: e.target.value}))} placeholder="ex: 172357" />
+                <label className={label}>Client *</label>
+                <input className={input} required list="clients" value={form.gestionnaire} onChange={e => setForm(f => ({ ...f, gestionnaire: e.target.value }))} placeholder="ex: Agence Dupont" />
+                <datalist id="clients">{clients.map(c => <option key={c} value={c} />)}</datalist>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Date de la mission *</label>
-                <input type="date" className="w-full border rounded-xl px-3 py-2 text-sm" required value={form.date_mission} onChange={e => setForm(f => ({...f, date_mission: e.target.value}))} />
+                <label className={label}>Type de mission *</label>
+                <input className={input} required value={form.type_mission} onChange={e => setForm(f => ({ ...f, type_mission: e.target.value }))} placeholder="ex: Livraison, Conciergerie, Accompagnement…" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Type EDL *</label>
-                <select className="w-full border rounded-xl px-3 py-2 text-sm" value={form.type_mission} onChange={e => setForm(f => ({...f, type_mission: e.target.value}))}>
-                  <option value="entrant">Entrant</option>
-                  <option value="sortant">Sortant</option>
-                </select>
+                <label className={label}>Date *</label>
+                <input type="date" className={input} required value={form.date_mission} onChange={e => setForm(f => ({ ...f, date_mission: e.target.value }))} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Type de bien *</label>
-                <select className="w-full border rounded-xl px-3 py-2 text-sm" value={form.type_bien} onChange={e => setForm(f => ({...f, type_bien: e.target.value}))}>
-                  <option value="appartement">Appartement (40€ HT)</option>
-                  <option value="maison">Maison (50€ HT)</option>
-                  <option value="local_commercial">Local commercial (tarif surface)</option>
-                </select>
+                <label className={label}>Référence</label>
+                <input className={input} value={form.numero_mission} onChange={e => setForm(f => ({ ...f, numero_mission: e.target.value }))} placeholder="ex: bon de commande client" />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Heure début</label>
-                <input type="time" className="w-full border rounded-xl px-3 py-2 text-sm" value={form.heure_debut} onChange={e => setForm(f => ({...f, heure_debut: e.target.value}))} />
+                <label className={label}>Heure début</label>
+                <input type="time" className={input} value={form.heure_debut} onChange={e => setForm(f => ({ ...f, heure_debut: e.target.value }))} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Heure fin</label>
-                <input type="time" className="w-full border rounded-xl px-3 py-2 text-sm" value={form.heure_fin} onChange={e => setForm(f => ({...f, heure_fin: e.target.value}))} />
-              </div>
-              {form.type_bien === "local_commercial" && (
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Surface (m²) *</label>
-                  <input type="number" className="w-full border rounded-xl px-3 py-2 text-sm" required={form.type_bien === "local_commercial"} value={form.surface_m2} onChange={e => setForm(f => ({...f, surface_m2: e.target.value}))} placeholder="ex: 91" />
-                </div>
-              )}
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Adresse du bien *</label>
-                <input className="w-full border rounded-xl px-3 py-2 text-sm" required value={form.adresse} onChange={e => setForm(f => ({...f, adresse: e.target.value}))} placeholder="ex: 14 avenue Joseph Garnier, 06100 Nice" />
-              </div>
-              {form.type_bien !== "local_commercial" && (
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 block mb-1">Meublé</label>
-                  <select className="w-full border rounded-xl px-3 py-2 text-sm" value={form.meuble ? "oui" : "non"} onChange={e => setForm(f => ({...f, meuble: e.target.value === "oui"}))}>
-                    <option value="non">Non</option>
-                    <option value="oui">Oui ({supplMeubleLabel})</option>
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Frais déplacement sup. (€ HT)</label>
-                <input type="number" step="0.01" className="w-full border rounded-xl px-3 py-2 text-sm" value={form.fd_sup} onChange={e => setForm(f => ({...f, fd_sup: e.target.value}))} placeholder="0" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Gestionnaire</label>
-                <input className="w-full border rounded-xl px-3 py-2 text-sm" value={form.gestionnaire} onChange={e => setForm(f => ({...f, gestionnaire: e.target.value}))} placeholder="ex: Mme DURAND — Agence Tissinie" />
+                <label className={label}>Heure fin</label>
+                <input type="time" className={input} value={form.heure_fin} onChange={e => setForm(f => ({ ...f, heure_fin: e.target.value }))} />
               </div>
               <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Notes</label>
-                <input className="w-full border rounded-xl px-3 py-2 text-sm" value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} placeholder="ex: T4, code portail A1234..." />
+                <label className={label}>Lieu / adresse</label>
+                <input className={input} value={form.adresse} onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))} placeholder="ex: 14 avenue Jean Médecin, 06000 Nice" />
               </div>
-
-              {tarifPreview !== null && tarifPreview > 0 && (
-                <div className="col-span-2 bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm">
-                  <span className="text-gray-600">Tarif calculé : </span>
-                  <span className="font-bold text-orange-600">{tarifPreview.toFixed(2)} € HT</span>
-                  <span className="text-gray-500"> ({(tarifPreview * 1.2).toFixed(2)} € TTC)</span>
-                </div>
-              )}
-              {tarifPreview === 0 && form.type_bien === "local_commercial" && (
-                <div className="col-span-2 bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-700">
-                  Surface &gt; 500m² — tarif sur proposition par mail
-                </div>
-              )}
-
+              <div className="col-span-2">
+                <label className={label}>Description</label>
+                <textarea className={input} rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Détail de la prestation (apparaît sur la facture)" />
+              </div>
+              <div>
+                <label className={label}>Montant (€) *</label>
+                <input type="number" step="0.01" min="0" className={input} required value={form.montant_ht} onChange={e => setForm(f => ({ ...f, montant_ht: e.target.value }))} placeholder="0.00" />
+              </div>
               <div className="col-span-2 flex gap-3 mt-2">
                 <button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-xl font-semibold text-sm">
                   {editingId ? "Enregistrer les modifications" : "Enregistrer"}
                 </button>
-                <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setForm(emptyForm); }} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-xl font-semibold text-sm">Annuler</button>
+                <button type="button" onClick={closeForm} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-xl font-semibold text-sm">Annuler</button>
               </div>
             </form>
           </div>
         )}
 
-        {/* Sélecteur de mois + Facture */}
-        <div className="bg-white rounded-2xl shadow p-4 mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="bg-white rounded-2xl shadow p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="text-sm font-semibold text-gray-700">Mois :</label>
-            <input
-              type="month"
-              className="border rounded-xl px-3 py-2 text-sm"
-              value={selectedMois}
-              onChange={e => setSelectedMois(e.target.value)}
-            />
+            <input type="month" className="border rounded-xl px-3 py-2 text-sm" value={selectedMois} onChange={e => setSelectedMois(e.target.value)} />
+            <label className="text-sm font-semibold text-gray-700">Client :</label>
+            <select className="border rounded-xl px-3 py-2 text-sm" value={selectedClient} onChange={e => setSelectedClient(e.target.value)}>
+              <option value="">Tous</option>
+              {clients.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="text-sm text-gray-600 flex gap-4">
-              <span><span className="font-bold text-gray-900">{missionsDuMois.length}</span> mission(s)</span>
+              <span><span className="font-bold text-gray-900">{selection.length}</span> mission(s)</span>
               <span>Total : <span className="font-bold text-orange-600">{totalHT.toFixed(2)} €</span></span>
               <span>Payé : <span className="font-bold text-green-600">{totalPaye.toFixed(2)} €</span></span>
             </div>
-            <button
-              onClick={() => window.open(`/admin/edl/facture/${selectedMois}`, "_blank")}
-              disabled={missionsDuMois.length === 0}
-              className="bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm"
-            >
-              📄 Voir facture du mois
+            <button onClick={() => openDoc("proforma")} disabled={!selection.length} className="bg-white border border-gray-900 hover:bg-gray-100 disabled:opacity-40 text-gray-900 px-4 py-2 rounded-xl font-semibold text-sm">
+              📝 Proforma
+            </button>
+            <button onClick={() => openDoc("facture")} disabled={!selection.length} className="bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm">
+              📄 Facture
             </button>
           </div>
         </div>
 
-        {/* Liste des missions */}
         <div className="bg-white rounded-2xl shadow overflow-x-auto">
           <table className="w-full text-sm min-w-max">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">N° Mission</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Date</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Créneau</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Type EDL</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Bien</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Adresse</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Meublé</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">FD Sup</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">HT</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Statut</th>
-                <th className="px-4 py-3"></th>
+                {["Date", "Client", "Type", "Réf.", "Lieu", "Montant", "Statut", ""].map(h => (
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {loading && (
-                <tr><td colSpan={10} className="text-center py-8 text-gray-400">Chargement...</td></tr>
-              )}
-              {!loading && missions.length === 0 && (
-                <tr><td colSpan={10} className="text-center py-8 text-gray-400">Aucune mission enregistrée</td></tr>
-              )}
-              {!loading && missions.map(m => (
+              {loading && <tr><td colSpan={8} className="text-center py-8 text-gray-400">Chargement...</td></tr>}
+              {!loading && selection.length === 0 && <tr><td colSpan={8} className="text-center py-8 text-gray-400">Aucune mission pour cette sélection</td></tr>}
+              {!loading && selection.map(m => (
                 <tr key={m.id} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500">{m.numero_mission || "-"}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{new Date(m.date_mission).toLocaleDateString("fr-FR")}</td>
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{m.heure_debut && m.heure_fin ? `${m.heure_debut.slice(0,5)} - ${m.heure_fin.slice(0,5)}` : "-"}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${m.type_mission === "entrant" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
-                      {m.type_mission === "entrant" ? "Entrant" : "Sortant"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{TYPE_BIEN_LABELS[m.type_bien] || m.type_bien || "-"}</td>
-                  <td className="px-4 py-3 max-w-xs truncate">{m.adresse}</td>
-                  <td className="px-4 py-3">{m.meuble ? "✓" : "-"}</td>
-                  <td className="px-4 py-3">{m.fd_sup > 0 ? `${m.fd_sup} €` : "-"}</td>
+                  <td className="px-4 py-3 font-semibold">{m.gestionnaire || "-"}</td>
+                  <td className="px-4 py-3">{m.type_mission}</td>
+                  <td className="px-4 py-3 text-gray-500">{m.numero_mission || "-"}</td>
+                  <td className="px-4 py-3 max-w-xs truncate">{m.adresse || "-"}</td>
                   <td className="px-4 py-3 font-semibold text-orange-600">{m.montant_ht.toFixed(2)} €</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => togglePaye(m)}
-                      className={`px-3 py-1 rounded-full text-xs font-bold transition ${m.paye ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-                    >
+                    <button onClick={() => togglePaye(m)} className={`px-3 py-1 rounded-full text-xs font-bold ${m.paye ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                       {m.paye ? `✓ Payé${m.date_paiement ? ` ${new Date(m.date_paiement).toLocaleDateString("fr-FR")}` : ""}` : "En attente"}
                     </button>
                   </td>

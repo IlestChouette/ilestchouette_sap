@@ -1362,7 +1362,7 @@ export default function AdminPage() {
                       </button>
                       <button onClick={() => window.open("/admin/edl", "_blank")}
                         className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition">
-                        🏠 France EDL
+                        🧾 Missions spécifiques
                       </button>
                     </div>
                   </div>
@@ -1379,7 +1379,7 @@ export default function AdminPage() {
                         <p className="text-2xl font-bold text-blue-700">{fmtEuro(manualRevenue)}</p>
                       </div>
                       <div className="bg-purple-50 rounded-2xl p-4 text-center">
-                        <p className="text-xs text-purple-600 font-semibold uppercase mb-1">EDL payées</p>
+                        <p className="text-xs text-purple-600 font-semibold uppercase mb-1">Missions spécifiques payées</p>
                         <p className="text-2xl font-bold text-purple-700">{fmtEuro(edlRevenue)}</p>
                       </div>
                       <div className="bg-red-50 rounded-2xl p-4 text-center">

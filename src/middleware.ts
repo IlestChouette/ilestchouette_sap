@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 const PRES_COOKIE = "iec_pres_auth";
 const ADMIN_COOKIE = "iec_admin_auth";
+const GESTION_COOKIE = "iec_gestion_auth";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -25,9 +26,14 @@ export function middleware(request: NextRequest) {
   // le cookie est vérifié via /api/admin/check côté client.
   // Pas de redirection middleware pour éviter les 404.
 
+  // ── Protection /gestion ───────────────────────────────
+  // Même pattern que /admin : login intégré dans la page,
+  // vérification du cookie via /api/gestion/auth côté client.
+  // Le middleware ne redirige pas pour éviter les boucles.
+
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/presentation/:path*"],
+  matcher: ["/presentation/:path*", "/gestion/:path*"],
 };
