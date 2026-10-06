@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { ClientsList, DocumentsList, type Client, type DocRow } from "./DocsClients";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,13 +48,25 @@ export default function MissionsSpecifiquesPage() {
   const [selectedMois, setSelectedMois] = useState(() => new Date().toISOString().slice(0, 7));
   const [selectedClient, setSelectedClient] = useState("");
   const [form, setForm] = useState(emptyForm);
+  const [tab, setTab] = useState<"missions" | "documents" | "clients">("missions");
+  const [docs, setDocs] = useState<DocRow[]>([]);
+  const [clientsDb, setClientsDb] = useState<Client[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/check")
       .then((r) => { if (!r.ok) window.location.href = "/admin"; })
       .catch(() => { window.location.href = "/admin"; });
     loadMissions();
+    loadDocs();
   }, []);
+
+  async function loadDocs() {
+    const r = await fetch("/api/admin/missions-docs");
+    if (!r.ok) return;
+    const d = await r.json();
+    setDocs(d.documents);
+    setClientsDb(d.clients);
+  }
 
   async function loadMissions() {
     setLoading(true);
@@ -123,17 +136,25 @@ export default function MissionsSpecifiquesPage() {
     loadMissions();
   }
 
-  const clients = [...new Set(missions.map(m => m.gestionnaire).filter(Boolean))] as string[];
+  const clients = [...new Set([...clientsDb.map(c => c.nom), ...missions.map(m => m.gestionnaire)].filter(Boolean))].sort() as string[];
   const selection = missions.filter(m =>
     m.date_mission?.startsWith(selectedMois) && (!selectedClient || m.gestionnaire === selectedClient)
   );
   const totalHT = selection.reduce((s, m) => s + m.montant_ht, 0);
   const totalPaye = selection.filter(m => m.paye).reduce((s, m) => s + m.montant_ht, 0);
 
-  function openDoc(type: "proforma" | "facture") {
-    const q = new URLSearchParams({ type });
-    if (selectedClient) q.set("client", selectedClient);
-    window.open(`/admin/edl/facture/${selectedMois}?${q}`, "_blank");
+  async function openDoc(type: "proforma" | "facture") {
+    if (!confirm(`Créer ${type === "proforma" ? "une proforma" : "une facture"} pour ${selectedClient} (${selection.length} mission(s), ${totalHT.toFixed(2)} €) ?`)) return;
+    const win = window.open("about:blank", "_blank");
+    const r = await fetch("/api/admin/missions-docs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "doc_create", type, client_nom: selectedClient, periode: selectedMois, mission_ids: selection.map(m => m.id) }),
+    });
+    const d = await r.json();
+    if (!r.ok) { win?.close(); alert("Erreur : " + d.error); return; }
+    if (win) win.location.href = `/admin/edl/document/${d.id}`;
+    loadDocs();
   }
 
   return (
@@ -150,6 +171,19 @@ export default function MissionsSpecifiquesPage() {
           </button>
         </div>
 
+        <div className="flex gap-2 mb-6">
+          {([["missions", "Missions"], ["documents", `Proformas & factures (${docs.length})`], ["clients", `Clients (${clientsDb.length})`]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold ${tab === k ? "bg-gray-900 text-white" : "bg-white text-gray-600 shadow"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {tab === "documents" && <DocumentsList docs={docs} clients={clientsDb} />}
+        {tab === "clients" && <ClientsList clients={clientsDb} onSaved={loadDocs} />}
+
+        {tab === "missions" && <>
         {showForm && (
           <div className="bg-white rounded-2xl shadow p-6 mb-6">
             <h2 className="text-lg font-bold mb-4">{editingId ? "Modifier la mission" : "Nouvelle mission"}</h2>
@@ -217,10 +251,11 @@ export default function MissionsSpecifiquesPage() {
               <span>Total : <span className="font-bold text-orange-600">{totalHT.toFixed(2)} €</span></span>
               <span>Payé : <span className="font-bold text-green-600">{totalPaye.toFixed(2)} €</span></span>
             </div>
-            <button onClick={() => openDoc("proforma")} disabled={!selection.length} className="bg-white border border-gray-900 hover:bg-gray-100 disabled:opacity-40 text-gray-900 px-4 py-2 rounded-xl font-semibold text-sm">
+            {!selectedClient && selection.length > 0 && <span className="text-xs text-amber-600">Choisissez un client pour créer un document</span>}
+            <button onClick={() => openDoc("proforma")} disabled={!selection.length || !selectedClient} className="bg-white border border-gray-900 hover:bg-gray-100 disabled:opacity-40 text-gray-900 px-4 py-2 rounded-xl font-semibold text-sm">
               📝 Proforma
             </button>
-            <button onClick={() => openDoc("facture")} disabled={!selection.length} className="bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm">
+            <button onClick={() => openDoc("facture")} disabled={!selection.length || !selectedClient} className="bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white px-4 py-2 rounded-xl font-semibold text-sm">
               📄 Facture
             </button>
           </div>
@@ -260,6 +295,7 @@ export default function MissionsSpecifiquesPage() {
             </tbody>
           </table>
         </div>
+        </>}
 
       </div>
     </div>
