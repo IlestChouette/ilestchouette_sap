@@ -247,6 +247,15 @@ export default function AdminPage() {
   const [comptaTab, setComptaTab] = useState<"resume" | "recetes" | "depenses">("resume");
   const [comptaLoading, setComptaLoading] = useState(false);
   const [comptaYear, setComptaYear] = useState(new Date().getFullYear().toString());
+  const [tbStripe, setTbStripe] = useState<{ configured: boolean; total?: number; count?: number; year?: number; error?: string } | null>(null);
+
+  useEffect(() => {
+    if (!authed) return;
+    fetch(`/api/admin/tourist-book?year=${comptaYear}`)
+      .then((r) => r.json())
+      .then(setTbStripe)
+      .catch(() => setTbStripe({ configured: true, error: "Erreur réseau" }));
+  }, [comptaYear, authed]);
 
   async function loadCompta() {
     setComptaLoading(true);
@@ -1328,7 +1337,9 @@ export default function AdminPage() {
                 .filter((m) => m.date_paiement?.startsWith(comptaYear))
                 .reduce((s, m) => s + m.montant_ht, 0);
 
-              const totalRevenue = platformRevenue + manualRevenue + edlRevenue;
+              const tbRevenue = tbStripe?.year === Number(comptaYear) ? tbStripe.total ?? 0 : 0;
+
+              const totalRevenue = platformRevenue + manualRevenue + edlRevenue + tbRevenue;
 
               const totalDepenses = (compta?.depenses ?? [])
                 .filter((d) => (d["Date"] ?? "").includes(comptaYear.slice(2)))
@@ -1381,6 +1392,21 @@ export default function AdminPage() {
                       <div className="bg-purple-50 rounded-2xl p-4 text-center">
                         <p className="text-xs text-purple-600 font-semibold uppercase mb-1">Missions spécifiques payées</p>
                         <p className="text-2xl font-bold text-purple-700">{fmtEuro(edlRevenue)}</p>
+                      </div>
+                      <div className="bg-sky-50 rounded-2xl p-4 text-center">
+                        <p className="text-xs text-sky-600 font-semibold uppercase mb-1">Tourist Book (Stripe)</p>
+                        {!tbStripe ? (
+                          <p className="text-sm text-sky-700">Chargement…</p>
+                        ) : !tbStripe.configured ? (
+                          <p className="text-xs text-sky-700">Clé Stripe non configurée</p>
+                        ) : tbStripe.error ? (
+                          <p className="text-xs text-red-600">{tbStripe.error}</p>
+                        ) : (
+                          <>
+                            <p className="text-2xl font-bold text-sky-700">{fmtEuro(tbRevenue)}</p>
+                            <p className="text-[11px] text-sky-600">{tbStripe.count} paiement(s)</p>
+                          </>
+                        )}
                       </div>
                       <div className="bg-red-50 rounded-2xl p-4 text-center">
                         <p className="text-xs text-red-600 font-semibold uppercase mb-1">Dépenses</p>
