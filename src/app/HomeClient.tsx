@@ -55,31 +55,22 @@ const SITUATIONS = [
   },
 ];
 
-const PRICING = [
-  { label: "Courses supermarché", price: "8 € + 1 €/km" },
-  { label: "Médicaments & pharmacie", price: "6 € + 1 €/km" },
-  { label: "Nourriture & repas", price: "5 € + 1 €/km" },
-  { label: "Clés / objets & petits colis", price: "6 € + 1 €/km" },
-  { label: "Achats boutiques & petits commerces", price: "10 € + 1 €/km" },
-  { label: "Accompagnement (rendez-vous, aide, démarches…)", price: "25 € / heure" },
-  { label: "Voiturier (hôtel, résidence, événements…)", price: "25 € / heure" },
-  { label: "Dépannage informatique à domicile", price: "65 € / heure" },
-  { label: "Bricolage & petits travaux", price: "60 € / heure" },
-  { label: "Mission spéciale / autre besoin", price: "Sur devis" },
-];
+const DEVIS_URL =
+  "https://wa.me/33695427312?text=" +
+  encodeURIComponent("Bonjour, je souhaite demander un devis à Il est chouette pour : ");
 
 const FAQ = [
   {
     q: "Proposez-vous des services de bricolage à Nice ?",
-    a: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules, fixation de tableaux... Tarif : 60 € / heure. Contactez-nous au 06 95 42 73 12.",
+    a: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules, fixation de tableaux... Demandez votre devis gratuit au au 06 95 42 73 12.",
   },
   {
     q: "Comment fonctionne le service de courses drive à Nice ?",
-    a: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer en votre nom. Notre coursier récupère et vous livre. À partir de 8 € + 1 €/km (frais de livraison uniquement).",
+    a: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer en votre nom. Notre coursier récupère et vous livre. Demandez votre devis gratuit.",
   },
   {
     q: "Livrez-vous des médicaments à domicile à Nice ?",
-    a: "Oui, Il est chouette récupère vos ordonnances et médicaments à la pharmacie et vous les livre à domicile à Nice. Idéal pour les personnes âgées, à mobilité réduite ou les professionnels. Tarif : 6 € + 1 €/km.",
+    a: "Oui, Il est chouette récupère vos ordonnances et médicaments à la pharmacie et vous les livre à domicile à Nice. Idéal pour les personnes âgées, à mobilité réduite ou les professionnels. Demandez votre devis gratuit.",
   },
   {
     q: "Êtes-vous disponibles le week-end et les jours fériés ?",
@@ -87,11 +78,11 @@ const FAQ = [
   },
   {
     q: "Proposez-vous un service de voiturier à Nice ?",
-    a: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Nos coursiers sont professionnels et discrets. Tarif : 25 € / heure.",
+    a: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Nos coursiers sont professionnels et discrets. Demandez votre devis gratuit.",
   },
   {
     q: "Livrez-vous dans toute la ville de Nice ?",
-    a: "Nous intervenons dans toute la ville de Nice et ses environs proches. De la Promenade des Anglais au quartier Libération, de Nice Ouest à Nice Est, nous sommes là. Un supplément de 1 €/km s'applique selon la distance.",
+    a: "Nous intervenons dans toute la ville de Nice et ses environs proches. De la Promenade des Anglais au quartier Libération, de Nice Ouest à Nice Est, nous sommes là. Demandez votre devis gratuit pour votre adresse.",
   },
 ];
 
@@ -334,45 +325,36 @@ export default function HomeClient() {
         </div>
       </section>
 
-      {/* ══════════════════════ TARIFS ══════════════════════ */}
-      <section id="tarifs" className="bg-white border-y border-slate-100 py-12 md:py-16">
+      {/* ══════════════════════ DEVIS ══════════════════════ */}
+      <section id="devis" className="bg-white border-y border-slate-100 py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-4">
-          <div className="iec-reveal">
-            <h2 className="text-xl md:text-2xl font-semibold text-center mb-3">
-              Tarifs simples et lisibles.
+          <div className="iec-reveal max-w-2xl mx-auto text-center">
+            <h2 className="text-xl md:text-2xl font-semibold mb-3">
+              Un devis gratuit, adapté à ton besoin.
             </h2>
-            <p className="text-sm text-slate-600 text-center max-w-2xl mx-auto mb-3">
-              Pour les courses, pharmacie, nourriture et petits colis : tu as un{" "}
-              <span className="font-semibold">tarif de base</span>, puis on ajoute{" "}
-              <span className="font-semibold">1 € par kilomètre</span> entre le point de départ et le point d'arrivée.
+            <p className="text-sm text-slate-600 mb-6">
+              Chaque mission est différente : explique-nous ce dont tu as besoin, où et quand,
+              et on te répond rapidement avec un devis clair, sans engagement.
             </p>
-            <p className="text-sm text-slate-600 text-center max-w-2xl mx-auto mb-8">
-              Pour les missions à l'heure (voiturier, accompagnement, dépannage informatique, bricolage), tu paies un{" "}
-              <span className="font-semibold">tarif horaire fixe</span>, sans compter les kilomètres.
-            </p>
-          </div>
-
-          <div className="iec-reveal max-w-3xl mx-auto bg-slate-50 border border-slate-100 rounded-2xl overflow-hidden" style={{ transitionDelay: "0.1s" }}>
-            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] text-xs md:text-sm font-semibold bg-slate-100/70 px-4 py-2">
-              <div>Type de mission</div>
-              <div className="text-right">Tarif</div>
-            </div>
-            {PRICING.map((row, idx) => (
-              <div
-                key={row.label}
-                className={`grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)] px-4 py-3 text-xs md:text-sm ${idx % 2 === 1 ? "bg-white" : "bg-slate-50"}`}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <a
+                href={DEVIS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackEvent("devis_whatsapp")}
+                className="inline-flex items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 text-sm font-semibold transition"
               >
-                <div>{row.label}</div>
-                <div className="text-right font-semibold">{row.price}</div>
-              </div>
-            ))}
+                Demander un devis
+              </a>
+              <a
+                href="mailto:allo@ilestchouette.fr?subject=Demande%20de%20devis"
+                onClick={() => trackEvent("devis_email")}
+                className="inline-flex items-center justify-center rounded-full border border-slate-300 hover:border-slate-400 px-6 py-3 text-sm font-semibold text-slate-700 transition"
+              >
+                Par email
+              </a>
+            </div>
           </div>
-
-          <p className="text-[11px] text-slate-500 text-center mt-3">
-            Exemple 1 : course supermarché à 8 € + 3 km = 11 € au total.{" "}
-            <br />
-            Exemple 2 : dépannage informatique à domicile = 65 € pour 1 heure.
-          </p>
 
           <div className="mt-6 max-w-3xl mx-auto bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4 flex gap-4 items-start">
             <span className="text-2xl flex-shrink-0">💡</span>
@@ -380,7 +362,7 @@ export default function HomeClient() {
               <p className="text-sm font-semibold text-slate-800">Crédit d'impôt 50 % possible</p>
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                 Certains services Il est chouette (accompagnement, aide administrative, bricolage, dépannage informatique)
-                peuvent ouvrir droit au crédit d'impôt services à la personne — soit la moitié du tarif remboursée.
+                peuvent ouvrir droit au crédit d'impôt services à la personne — soit la moitié du montant remboursée.
                 Contactez-nous pour en savoir plus.
               </p>
             </div>

@@ -28,7 +28,7 @@ export default function SiteHeader() {
         {/* Menu desktop */}
         <nav className="hidden md:flex items-center gap-6 text-sm">
           <a href="/#services" className="hover:text-orange-500">Services</a>
-          <a href="/#tarifs" className="hover:text-orange-500">Tarifs</a>
+          <a href="/#devis" className="hover:text-orange-500">Devis</a>
           <a href="/#faq" className="hover:text-orange-500">FAQ</a>
           <a href="/#contact" className="hover:text-orange-500">Contact</a>
           <Link
@@ -72,7 +72,7 @@ export default function SiteHeader() {
         <div className="md:hidden border-t border-slate-100 bg-white/95">
           <nav className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-2 text-sm">
             <a href="/#services" className="py-1 hover:text-orange-500" onClick={() => setOpen(false)}>Services</a>
-            <a href="/#tarifs" className="py-1 hover:text-orange-500" onClick={() => setOpen(false)}>Tarifs</a>
+            <a href="/#devis" className="py-1 hover:text-orange-500" onClick={() => setOpen(false)}>Devis</a>
             <a href="/#faq" className="py-1 hover:text-orange-500" onClick={() => setOpen(false)}>FAQ</a>
             <a href="/#contact" className="py-1 hover:text-orange-500" onClick={() => setOpen(false)}>Contact</a>
             <Link

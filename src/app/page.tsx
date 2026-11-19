@@ -74,7 +74,6 @@ const jsonLd = {
     "https://www.instagram.com/ilestchouette",
     "https://www.facebook.com/ilestchouette",
   ],
-  priceRange: "€€",
 };
 
 const faqJsonLd = {
@@ -84,17 +83,17 @@ const faqJsonLd = {
     {
       "@type": "Question",
       name: "Proposez-vous des services de bricolage à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules... Tarif : 60 € / heure. Contactez-nous au 06 95 42 73 12." },
+      acceptedAnswer: { "@type": "Answer", text: "Oui ! Il est chouette propose des services de bricolage et petits travaux à domicile partout à Nice : montage de meubles, petites réparations, remplacement d'ampoules... Demandez votre devis gratuit au au 06 95 42 73 12." },
     },
     {
       "@type": "Question",
       name: "Comment fonctionne le service de courses drive à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer en votre nom. Notre coursier récupère et vous livre. À partir de 8 € + 1 €/km (frais de livraison uniquement)." },
+      acceptedAnswer: { "@type": "Answer", text: "Passez votre commande sur le site drive de votre supermarché (Carrefour Drive, Leclerc Drive...), puis contactez-nous avec votre numéro de commande et l'heure de retrait. Prévenez le drive qu'un coursier d'Il est chouette viendra récupérer en votre nom. Notre coursier récupère et vous livre. Demandez votre devis gratuit." },
     },
     {
       "@type": "Question",
       name: "Livrez-vous des médicaments à domicile à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Oui, Il est chouette récupère vos ordonnances et médicaments à la pharmacie et vous les livre à domicile à Nice. Tarif : 6 € + 1 €/km." },
+      acceptedAnswer: { "@type": "Answer", text: "Oui, Il est chouette récupère vos ordonnances et médicaments à la pharmacie et vous les livre à domicile à Nice. Demandez votre devis gratuit." },
     },
     {
       "@type": "Question",
@@ -104,12 +103,12 @@ const faqJsonLd = {
     {
       "@type": "Question",
       name: "Proposez-vous un service de voiturier à Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Tarif : 25 € / heure." },
+      acceptedAnswer: { "@type": "Answer", text: "Oui, notre service de voiturier est disponible pour les hôtels, résidences privées et événements à Nice et alentours. Demandez votre devis gratuit." },
     },
     {
       "@type": "Question",
       name: "Livrez-vous dans toute la ville de Nice ?",
-      acceptedAnswer: { "@type": "Answer", text: "Nous intervenons dans toute la ville de Nice et ses environs proches. Un supplément de 1 €/km s'applique selon la distance." },
+      acceptedAnswer: { "@type": "Answer", text: "Nous intervenons dans toute la ville de Nice et ses environs proches. Demandez votre devis gratuit pour votre adresse." },
     },
   ],
 };
