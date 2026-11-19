@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-// Clé Stripe restreinte (lecture seule « Charges ») du compte Stripe de Tourist Book
+// Clé Stripe restreinte (lecture seule « Charges »). Le compte Stripe est partagé avec Il est chouette :
+// seuls les paiements d'abonnement (liés à une facture Stripe) viennent de Tourist Book,
+// les commandes Il est chouette sont des PaymentIntents ponctuels sans facture.
 const KEY = process.env.TOURIST_BOOK_STRIPE_KEY;
 
 export async function GET(req: Request) {
@@ -28,7 +30,7 @@ export async function GET(req: Request) {
     const d = await r.json();
     if (!r.ok) return NextResponse.json({ error: d.error?.message ?? "Erreur Stripe" }, { status: 502 });
     for (const c of d.data) {
-      if (c.status !== "succeeded" || !c.paid) continue;
+      if (c.status !== "succeeded" || !c.paid || !c.invoice) continue;
       const net = (c.amount - c.amount_refunded) / 100;
       if (net <= 0) continue;
       total += net;
