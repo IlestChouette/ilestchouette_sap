@@ -26,7 +26,10 @@ export async function GET(req: Request) {
   for (;;) {
     const q = new URLSearchParams({ limit: "100", "created[gte]": String(from), "created[lt]": String(to) });
     if (after) q.set("starting_after", after);
-    const r = await fetch(`https://api.stripe.com/v1/charges?${q}`, { headers: { Authorization: `Bearer ${KEY}` } });
+    const r = await fetch(`https://api.stripe.com/v1/charges?${q}`, {
+      // version figée : le champ charge.invoice a disparu à partir de 2025-03-31
+      headers: { Authorization: `Bearer ${KEY}`, "Stripe-Version": "2024-06-20" },
+    });
     const d = await r.json();
     if (!r.ok) return NextResponse.json({ error: d.error?.message ?? "Erreur Stripe" }, { status: 502 });
     for (const c of d.data) {
