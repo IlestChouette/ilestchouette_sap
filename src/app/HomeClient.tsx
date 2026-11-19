@@ -423,6 +423,30 @@ export default function HomeClient() {
         </div>
       </section>
 
+      {/* ══════════════════════ TOURIST BOOK ══════════════════════ */}
+      <section id="tourist-book" className="bg-orange-50 border-y border-orange-100 py-12 md:py-16">
+        <div className="iec-reveal max-w-4xl mx-auto px-4 flex flex-col md:flex-row items-center gap-8">
+          <div className="text-5xl flex-shrink-0">📘</div>
+          <div className="flex-1 space-y-3 text-center md:text-left">
+            <span className="inline-block text-xs font-bold tracking-[0.2em] uppercase text-orange-500">Nos projets</span>
+            <h2 className="text-xl md:text-2xl font-semibold">Créateurs de Tourist Book</h2>
+            <p className="text-sm text-slate-600 leading-relaxed max-w-xl">
+              Il est chouette est à l&apos;origine de Tourist Book : le livret d&apos;accueil digital pour les hôtes et
+              conciergeries de la Côte d&apos;Azur, et le cahier de consignes digital pour les hôtels.
+            </p>
+          </div>
+          <a
+            href="https://tourist-book.com"
+            target="_blank"
+            rel="noopener"
+            onClick={() => trackEvent("click_tourist_book")}
+            className="flex-shrink-0 inline-flex items-center justify-center rounded-full bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-6 py-3 transition"
+          >
+            Découvrir le projet →
+          </a>
+        </div>
+      </section>
+
       {/* ══════════════════════ COMMERCANT PARTENAIRE ══════════════════════ */}
       <section className="bg-slate-900 text-white py-12 md:py-16">
         <div className="max-w-6xl mx-auto px-4">
